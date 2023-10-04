@@ -68,13 +68,15 @@ int main(int argc, char *argv[]) {
   bool quiet{false};
   bool not_build{false};
   bool executable_name_provided{false};
+  bool will_run{false};
   std::string og_dir{fs::current_path().string()};
   std::string project_name{};
   std::string config{""};
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
+  std::string executable_args{};
 
   auto help = [&](){							
-    print("Usage: {} [flags] [config] [subcmd]\n", program);
+    print("Usage: {} [flags] [config] [subcmd] {{executable_args...}}\n", program);
     print("\nConfigs: \n"
           "    Debug (default)\n"
           "    Release\n"
@@ -130,6 +132,19 @@ int main(int argc, char *argv[]) {
     return ((_default && response=="") || response=="y" || response=="yes") ? true : false;
   };
 
+  // get the project name from the `.sln` file in `.\build`
+  auto get_project_name = [&]() {
+    SetCurrentDirectoryA("build");
+      WIN32_FIND_DATAA file_data{};
+      if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
+        ERR("Could not find .sln file in `build\\`\n");
+      }
+      project_name = file_data.cFileName;
+      // remove `.sln` from the filename
+      for (size_t i = 0; i < 4; ++i) project_name.pop_back();
+    SetCurrentDirectoryA("..\\");
+  };
+
   std::vector<Subcmd> subcommands = {
       {"/Q",	[&]() { quiet = true; }},
       {"/Rdst", [&]() { UNIMPLEMENTED(); }},
@@ -158,7 +173,7 @@ int main(int argc, char *argv[]) {
 	      ofs.write((char*)content.c_str(), content.size());
 	    }
 	    ofs.close();
-	    if (!quiet) print("Created {}...\n", file);
+	    if (!quiet) print("INFO: Created {}...\n", file);
 	  }
 	};
 	
@@ -178,7 +193,9 @@ int main(int argc, char *argv[]) {
 	
 	exit(0);
       }},
-      {"run",	[&]() { UNIMPLEMENTED(); }},
+      {"run",	[&]() {
+	will_run=true;
+      }},
       {"srun",	[&]() { UNIMPLEMENTED(); }},
       {"dir",	[&]() { UNIMPLEMENTED(); }},
       {"clean", [&]() { UNIMPLEMENTED(); }},
@@ -214,7 +231,8 @@ int main(int argc, char *argv[]) {
     }
     if (!matched){
       if (config.empty()){
-	config = a;
+	VAR(config);
+        config = a;
 	// check if the config is valid
 	bool valid{false};
 	for (auto& c : valid_configs) {
@@ -227,7 +245,8 @@ int main(int argc, char *argv[]) {
 	  ERR("`{}` is not a valid config!\n", config);
 	}
       } else {
-        ERR("Invalid subcommand or flag `{}`", a);
+	executable_args += (!executable_args.empty() ? " " : "");
+	executable_args += a;
       }
     }
   };
@@ -239,18 +258,14 @@ int main(int argc, char *argv[]) {
   if (!not_build){
     run_premake();
     ASSERT(fs::exists("build"));
-    // get the project name from the `.sln` file in `.\build`
-    SetCurrentDirectoryA("build");
-      WIN32_FIND_DATAA file_data{};
-      if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
-        ERR("Could not find .sln file in `build\\`\n");
-      }
-      project_name = file_data.cFileName;
-      // remove `.sln` from the filename
-      for (size_t i = 0; i < 4; ++i) project_name.pop_back();
-    SetCurrentDirectoryA("..\\");
-    
+    get_project_name();    
     run_msbuild(config);
+  }
+
+  if (will_run){
+    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", project_name, config);
+    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args);
+    wait_and_close_process(child);
   }
   
   return 0;
