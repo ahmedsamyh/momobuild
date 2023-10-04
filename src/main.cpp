@@ -26,6 +26,8 @@ struct Subcmd {
 #define ROOT_IDENTIFIER ".topdir"
 #define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
 #define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
+#define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
+#define VCREDIST_EXE "vc_redist."
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -37,6 +39,7 @@ int main(int argc, char *argv[]) {
   // flags
   bool quiet{false};
   bool not_build{false};
+  bool will_copy_redist{false};
   bool open_sln{false};
   bool executable_name_provided{false};
   std::string executable_name{};
@@ -122,7 +125,9 @@ int main(int argc, char *argv[]) {
 
   std::vector<Subcmd> subcommands = {
     {false, "/Q",	[&]() { quiet = true; }},
-    {false, "/Rdst", [&]() { UNIMPLEMENTED(); }},
+    {false, "/Rdst", [&]() {
+      will_copy_redist=true;
+    }},
     {false, "/h",    help},
     {false, "/?",    help},
     {false, "/nb",	[&]() { not_build = true; }},
@@ -255,6 +260,20 @@ int main(int argc, char *argv[]) {
     config="Debug";
     if (will_run || will_srun)
       not_build=true;
+  }
+
+  if (will_copy_redist){
+    get_project_name();
+    if (!fs::exists("redist")) {
+      fs::create_directory("redist");
+      if (!quiet) print("INFO: Created {}\\...\n", "redist");
+    }
+    fs::copy(FMT("{}{}{}", VCREDIST_PATH, VCREDIST_EXE, "x64.exe"), "redist\\", fs::copy_options::update_existing | fs::copy_options::recursive);
+    if (!quiet) print("INFO: Copied {}{}...\n", VCREDIST_EXE, "x64.exe");
+    fs::copy(FMT("{}{}{}", VCREDIST_PATH, VCREDIST_EXE, "x86.exe"), "redist\\", fs::copy_options::update_existing | fs::copy_options::recursive);
+    if (!quiet) print("INFO: Copied {}{}...\n", VCREDIST_EXE, "x86.exe");
+
+    exit(0);
   }
 
   if (open_sln) {
