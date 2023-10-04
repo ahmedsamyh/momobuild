@@ -169,8 +169,13 @@ int main(int argc, char *argv[]) {
 
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n + Running MSBuild [{}]...\n", config);
-    auto msbuild = run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", "");
-    wait_and_close_process(msbuild);
+    if (config=="All") {
+      wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
+      wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
+    } else {
+      auto msbuild = run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
+      wait_and_close_process(msbuild);
+    }
   };
   
   auto run_premake = [&]() {
@@ -215,6 +220,17 @@ int main(int argc, char *argv[]) {
 
   if (!not_build){
     run_premake();
+    ASSERT(fs::exists("build"));
+    SetCurrentDirectoryA("build");
+      WIN32_FIND_DATAA file_data{};
+      if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
+        ERR("Could not find .sln file in `build\\`\n");
+      }
+      project_name = file_data.cFileName;
+      // remove `.sln` from the filename
+      for (size_t i = 0; i < 4; ++i) project_name.pop_back();
+    SetCurrentDirectoryA("..\\");
+    
     run_msbuild(config);
   }
   
