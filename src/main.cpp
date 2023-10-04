@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
   // flags
   bool quiet{false};
   bool not_build{false};
+  bool open_sln{false};
   bool executable_name_provided{false};
   std::string executable_name{};
   bool will_run{false};
@@ -178,10 +179,13 @@ int main(int argc, char *argv[]) {
     }},
     {false, "dir",	[&]() {
       change_to_root_dir();
+      if (config == "All") config="Debug";
       open_dir(FMT("bin\\{}\\", (config.empty() ? "Debug" : config)));
     }},
     {false, "clean",	[&]() { UNIMPLEMENTED(); }},
-    {false, "sln",	[&]() { UNIMPLEMENTED(); }},
+    {false, "sln",	[&]() {
+      open_sln=true;
+    }},
   };
 
   auto run_msbuild = [&](std::string config="Debug") {
@@ -246,13 +250,21 @@ int main(int argc, char *argv[]) {
   };
 
   change_to_root_dir();
-  
+
   if (config.empty()) {
     config="Debug";
     if (will_run || will_srun)
       not_build=true;
   }
 
+  if (open_sln) {
+    get_project_name();
+    if (!quiet) print("{}: Opening {}.sln...\n", "momobuild", project_name);
+    open_file(FMT("build\\{}.sln", project_name));
+    exit(0);
+  }
+
+  
   if (!not_build){
     run_premake();
     ASSERT(fs::exists("build"));
