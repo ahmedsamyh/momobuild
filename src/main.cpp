@@ -23,6 +23,8 @@ struct Subcmd {
 };
 
 #define ROOT_IDENTIFIER ".topdir"
+#define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
+#define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -35,6 +37,7 @@ int main(int argc, char *argv[]) {
   bool quiet{false};
   bool not_build{false};
   bool executable_name_provided{false};
+  std::string executable_name{};
   bool will_run{false};
   bool will_srun{false};
   std::string og_dir{fs::current_path().string()};
@@ -54,7 +57,7 @@ int main(int argc, char *argv[]) {
 	  "    /Q    - Quite mode; do not output anything\n"	
 	  "    /Rdst - Copies vcredist files to .\\redist\n"	
 	  "    /h    - Same as the help subcommand.\n"		
-	  "    /nb   - Do not build and run premake.\n"		
+	  "    /nb   - Do not build and run .\n"		
 	  "    /ex   - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
 	  
@@ -84,6 +87,7 @@ int main(int argc, char *argv[]) {
     }
   };
 
+  /* asks for confirmation [y/n] */
   auto confirmation = [&](const std::string question, bool _default=true){
     std::string response{"AAA"};
     str::tolower(response);
@@ -178,29 +182,29 @@ int main(int argc, char *argv[]) {
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
-      wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
-      wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
+      wait_and_close_process(run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
+      wait_and_close_process(run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
     } else {
-      auto msbuild = run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
+      auto msbuild = run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
       wait_and_close_process(msbuild);
     }
   };
   
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
-    auto premake = run_process("D:\\bin\\premake 5.0 beta2\\premake5.exe", "vs2022", quiet);
+    auto premake = run_process(PREMAKE5_PATH, "vs2022", quiet);
     wait_and_close_process(premake);
   };
 
   auto run = [&](){
-    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", project_name, config);
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args);
+    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args);
     wait_and_close_process(child);
   };
 
   auto srun = [&](){
-    if (!quiet) print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", project_name, config);
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args, false, true);
+    if (!quiet) print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
     wait_and_close_process(child);
   };
 
@@ -227,6 +231,8 @@ int main(int argc, char *argv[]) {
 	if (!valid) {
 	  ERR("`{}` is not a valid config!\n", config);
 	}
+      } else if (executable_name.empty() && executable_name_provided && (will_run || will_srun)) {
+	executable_name = a;
       } else {
 	executable_args += (!executable_args.empty() ? " " : "");
 	executable_args += a;
