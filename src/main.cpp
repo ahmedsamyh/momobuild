@@ -2,12 +2,17 @@
 #include <functional>
 #include <stdcpp.hpp>
 #include <vector>
+#include <filesystem>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+namespace fs = std::filesystem;
 
 struct Subcmd {
   std::string name{};
   std::function<void()> func{nullptr};
 };
 
+#define ROOT_IDENTIFIER ".topdir"
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -50,7 +55,7 @@ int main(int argc, char *argv[]) {
       {"/Rdst", [&]() { UNIMPLEMENTED(); }},
       {"/h",    help},
       {"/nb",	[&]() { not_build = true; }},
-      {"/ex",    [&]() { executable_name_provided = true; }}
+      {"/ex",   [&]() { executable_name_provided = true; }},
       {"help",  help},
       {"init",	[&]() { UNIMPLEMENTED(); }},
       {"run",	[&]() { UNIMPLEMENTED(); }},
@@ -59,6 +64,19 @@ int main(int argc, char *argv[]) {
       {"clean", [&]() { UNIMPLEMENTED(); }},
       {"sln",	[&]() { UNIMPLEMENTED(); }},
   };
+
+
+  /* changes to the project root dir */
+  while (!fs::exists(ROOT_IDENTIFIER) && !fs::current_path().stem().string().empty()) {
+    if (!SetCurrentDirectoryA("..\\")){
+      ERR("Could not change directory");
+      return 0;
+    }
+  }
+
+  if (fs::current_path().stem().string().empty()){
+    ERR("Could not find {}", ROOT_IDENTIFIER);
+  }
 
   // parse command line arguments
   if (arg){
@@ -72,7 +90,7 @@ int main(int argc, char *argv[]) {
         }
       }
       if (!matched){
-        ERROR(FMT("Invalid subcommand or flag `{}`", a));
+        ERR("Invalid subcommand or flag `{}`", a);
       }
     } while (arg);
   }

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 
+
 #define VAR(name) print("{}: {}\n", #name, name)
 #define VAR_STR(name) std::format("{}: {}", #name, name)
 #define NL() print("\n")
@@ -16,9 +17,9 @@
   if (!(condition)) {                                                          \
     PANIC(msg);                                                                \
   }
-#define ERROR(...) PANIC("ERROR: ", __VA_ARGS__)
+#define ERR(str, ...) PANIC("{}: "str, "ERROR", __VA_ARGS__)
 #define FMT(str, ...) std::format((str), __VA_ARGS__)
-#define PANIC(...) panic(__FILE__, ":", __LINE__, ":", __VA_ARGS__)
+#define PANIC(str, ...) panic(FMT("{}:{}: "str, __FILE__, __LINE__,  __VA_ARGS__))
 void panic();
 template <typename T, typename... Types> void panic(T arg, Types... args) {
   std::cerr << arg;
@@ -31,7 +32,7 @@ template <typename T, typename... Types> void log(T arg, Types... args) {
   log(args...);
 }
 #define UNREACHABLE() PANIC("Uncreachable\n")
-#define UNIMPLEMENTED() PANIC(__func__, "() is unimplemented\n")
+#define UNIMPLEMENTED() PANIC("{}() is unimplemented\n", __func__)
 #define WARNING(...) LOG("WARNING: ", __VA_ARGS__)
 #define FMT(str, ...) std::format((str), __VA_ARGS__)
 #define fprint(file, str, ...) __print((file), FMT((str), __VA_ARGS__))
@@ -59,9 +60,9 @@ struct Arg {
 };
 
 #endif /* _STDCPP_H_ */
-
 //////////////////////////////////////////////////
 #if defined STDCPP_IMPLEMENTATION || STDCPP_IMPL
+
 
 void __print(std::ostream &file){};
 
@@ -91,5 +92,4 @@ std::string Arg::pop_arg() {
   *argv = *argv + 1;
   return arg;
 }
-
 #endif
