@@ -15,26 +15,44 @@ struct Subcmd {
 
 #define ROOT_IDENTIFIER ".topdir"
 
-
-PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd){
+PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout=false) {
   STARTUPINFOA startupinfo{};
+  if (no_stdout){
+    startupinfo.dwFlags |= STARTF_USESTDHANDLES;
+    startupinfo.hStdOutput = NULL;
+  }
   startupinfo.cb = sizeof(startupinfo);
   PROCESS_INFORMATION child_process_info{};
 
   std::string full_cmd = FMT("{} {}", program, cmd).c_str();
   
   if (!CreateProcessA(NULL,
-  			LPSTR(full_cmd.c_str()),
-  			NULL,NULL,FALSE,NORMAL_PRIORITY_CLASS,NULL,NULL,&startupinfo,&child_process_info)) {
+		      LPSTR(full_cmd.c_str()),
+  	              NULL,
+                      NULL,
+                      TRUE,
+                      NORMAL_PRIORITY_CLASS,
+                      NULL,
+                      NULL,
+                      &startupinfo,&child_process_info)) {
     ERR("Could not create child process! {}\n", GetLastError());
   };
   return child_process_info;
 }
 
+
 void wait_and_close_process(PROCESS_INFORMATION proc){
   if (WaitForSingleObject(proc.hProcess, INFINITE) == WAIT_FAILED){
     ERR("Could not wait until child process finishes {}", GetLastError());
   }
+
+  DWORD proc_exit_code{};
+  GetExitCodeProcess(proc.hProcess, &proc_exit_code);
+  if (proc_exit_code != 0){
+    fprint(std::cerr, "ERROR: Process exited with code: {}\n", proc_exit_code);
+    exit(proc_exit_code);
+  }
+  
   CloseHandle(proc.hProcess);
   CloseHandle(proc.hThread);
 }
@@ -121,7 +139,7 @@ int main(int argc, char *argv[]) {
       {"help",  help},
       {"init",	[&]() {
 	if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
-	if (!quiet) print(" + Initializing Project...\n");
+	if (!quiet) print("{}: Initializing Project...\n", "momobuild");
 	// create folders
 	auto create_dir = [&](const std::string& dir) {
 	  if (!fs::exists(dir)) {
@@ -168,7 +186,7 @@ int main(int argc, char *argv[]) {
   };
 
   auto run_msbuild = [&](std::string config="Debug") {
-    if (!quiet) print("\n + Running MSBuild [{}]...\n", config);
+    if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
       wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
       wait_and_close_process(run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
@@ -179,8 +197,8 @@ int main(int argc, char *argv[]) {
   };
   
   auto run_premake = [&]() {
-    if (!quiet) print("\n + Running Premake5...\n");
-    auto premake = run_process("D:\\bin\\premake 5.0 beta2\\premake5.exe", "vs2022");
+    if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
+    auto premake = run_process("D:\\bin\\premake 5.0 beta2\\premake5.exe", "vs2022", quiet);
     wait_and_close_process(premake);
   };
 
@@ -221,6 +239,7 @@ int main(int argc, char *argv[]) {
   if (!not_build){
     run_premake();
     ASSERT(fs::exists("build"));
+    // get the project name from the `.sln` file in `.\build`
     SetCurrentDirectoryA("build");
       WIN32_FIND_DATAA file_data{};
       if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
