@@ -4,7 +4,7 @@
 #include <format>
 #include <iostream>
 #include <string>
-
+#include <algorithm>
 
 #define VAR(name) print("{}: {}\n", #name, name)
 #define VAR_STR(name) std::format("{}: {}", #name, name)
@@ -59,6 +59,11 @@ struct Arg {
   std::string pop_arg();
 };
 
+namespace str {
+std::string& tolower(std::string& s);
+std::string& toupper(std::string& s);
+} // namespace str
+
 #endif /* _STDCPP_H_ */
 //////////////////////////////////////////////////
 #if defined STDCPP_IMPLEMENTATION || STDCPP_IMPL
@@ -92,4 +97,16 @@ std::string Arg::pop_arg() {
   *argv = *argv + 1;
   return arg;
 }
+
+namespace str {
+std::string& tolower(std::string& s) {
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
+  return s;
+}
+
+std::string& toupper(std::string& s) {
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::toupper(c); });
+  return s;
+}
+} // namespace str
 #endif

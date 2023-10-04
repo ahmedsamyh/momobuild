@@ -3,6 +3,7 @@
 #include <stdcpp.hpp>
 #include <vector>
 #include <filesystem>
+#include <fstream>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 namespace fs = std::filesystem;
@@ -23,6 +24,7 @@ int main(int argc, char *argv[]) {
   bool quiet{false};
   bool not_build{false};
   bool executable_name_provided{false};
+  std::string og_dir{fs::current_path().string()};
 
   auto help = [&](){							
     print("Usage: {} [flags] [config] [subcmd]\n", program);
@@ -50,6 +52,37 @@ int main(int argc, char *argv[]) {
 	  "    sln   - Opens the .sln file of the project.\n");
   };
 
+  /* changes to the project root dir */
+  auto change_to_root_dir = [&]() {
+    while (!fs::exists(ROOT_IDENTIFIER) && !fs::current_path().stem().string().empty()) {
+      if (!SetCurrentDirectoryA("..\\")){
+        ERR("Could not change directory\n");
+        exit(1);
+      }
+    }
+    std::string root_dir{fs::current_path().string()};  
+    if (fs::current_path().stem().string().empty()){
+      ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
+    }
+  };
+
+  auto confirmation = [&](const std::string question, bool _default=true){
+    std::string response{"AAA"};
+    str::tolower(response);
+    auto valid = [&](const std::string& str){ return str=="" || str=="y" || str=="yes" || str=="n" || str=="no"; };
+    
+    do {
+      if (!valid(response)){
+	print("Please enter yes or no\n");
+      }
+
+      print("{} [yes/no]{{default: {}}}\n", question, _default  ? "yes" : "no");
+      
+      std::getline(std::cin, response);
+    } while (!valid(response));
+    return ((_default && response=="") || response=="y" || response=="yes") ? true : false;
+  };
+
   std::vector<Subcmd> subcommands = {
       {"/Q",	[&]() { quiet = true; }},
       {"/Rdst", [&]() { UNIMPLEMENTED(); }},
@@ -57,7 +90,45 @@ int main(int argc, char *argv[]) {
       {"/nb",	[&]() { not_build = true; }},
       {"/ex",   [&]() { executable_name_provided = true; }},
       {"help",  help},
-      {"init",	[&]() { UNIMPLEMENTED(); }},
+      {"init",	[&]() {
+	if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
+	if (!quiet) print(" + Initializing Project...\n");
+	// create folders
+	auto create_dir = [&](const std::string& dir) {
+	  if (!fs::exists(dir)) {
+	    fs::create_directory(dir);
+	    if (!quiet) print("INFO: Created {}\\...\n", dir);
+	  }
+	};
+	auto create_file = [&](const std::string& file, const std::string& content={}){
+	  if (!fs::exists(file)) {
+	    std::ofstream ofs;
+	    ofs.open(file, std::ios::binary | std::ios::out);
+	    if (!ofs.is_open()) {
+	      ERR("Could not open file {} for writing.\n", file);
+	    }
+	    if (!content.empty()){
+	      ofs.write((char*)content.c_str(), content.size());
+	    }
+	    ofs.close();
+	    if (!quiet) print("Created {}...\n", file);
+	  }
+	};
+	
+	create_dir("src");
+	create_dir("bin");
+	create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
+	create_dir("bin\\Debug");
+	create_dir("build");
+	create_dir("lib");
+	create_dir("include");
+
+	// create files
+	create_file("premake5.lua");
+	create_file(".topdir");
+	create_file(".gitignore");
+	create_file("src\\main.cpp");
+      }},
       {"run",	[&]() { UNIMPLEMENTED(); }},
       {"srun",	[&]() { UNIMPLEMENTED(); }},
       {"dir",	[&]() { UNIMPLEMENTED(); }},
@@ -65,18 +136,6 @@ int main(int argc, char *argv[]) {
       {"sln",	[&]() { UNIMPLEMENTED(); }},
   };
 
-
-  /* changes to the project root dir */
-  while (!fs::exists(ROOT_IDENTIFIER) && !fs::current_path().stem().string().empty()) {
-    if (!SetCurrentDirectoryA("..\\")){
-      ERR("Could not change directory");
-      return 0;
-    }
-  }
-
-  if (fs::current_path().stem().string().empty()){
-    ERR("Could not find {}", ROOT_IDENTIFIER);
-  }
 
   // parse command line arguments
   if (arg){
