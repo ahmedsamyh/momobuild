@@ -211,13 +211,19 @@ int main(int argc, char *argv[]) {
   };
 
   auto run = [&](){
-    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+    if (!quiet) {
+      print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+      print("--------------------------------------------------\n");
+    }
     auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args);
     wait_and_close_process(child);
   };
 
   auto srun = [&](){
-    if (!quiet) print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+    if (!quiet) {
+      print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
+      print("--------------------------------------------------\n");
+    }
     auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
     wait_and_close_process(child);
   };
