@@ -15,8 +15,34 @@ struct Subcmd {
 
 #define ROOT_IDENTIFIER ".topdir"
 
+
+PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd){
+  STARTUPINFOA startupinfo{};
+  startupinfo.cb = sizeof(startupinfo);
+  PROCESS_INFORMATION child_process_info{};
+
+  std::string full_cmd = FMT("{} {}", program, cmd).c_str();
+  
+  if (!CreateProcessA(NULL,
+  			LPSTR(full_cmd.c_str()),
+  			NULL,NULL,FALSE,NORMAL_PRIORITY_CLASS,NULL,NULL,&startupinfo,&child_process_info)) {
+    ERR("Could not create child process! {}\n", GetLastError());
+  };
+  return child_process_info;
+}
+
+void wait_and_close_process(PROCESS_INFORMATION proc){
+  if (WaitForSingleObject(proc.hProcess, INFINITE) == WAIT_FAILED){
+    ERR("Could not wait until child process finishes {}", GetLastError());
+  }
+  CloseHandle(proc.hProcess);
+  CloseHandle(proc.hThread);
+}
+
 int main(int argc, char *argv[]) {
   ARG();
+  std::cout << std::unitbuf;
+  std::cerr << std::unitbuf;
 
   std::string program{arg.pop_arg()};
 
@@ -25,6 +51,9 @@ int main(int argc, char *argv[]) {
   bool not_build{false};
   bool executable_name_provided{false};
   std::string og_dir{fs::current_path().string()};
+  std::string project_name{};
+  std::string config{""};
+  std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
 
   auto help = [&](){							
     print("Usage: {} [flags] [config] [subcmd]\n", program);
@@ -60,7 +89,7 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
     }
-    std::string root_dir{fs::current_path().string()};  
+    std::string root_dir{fs::current_path().string()};
     if (fs::current_path().stem().string().empty()){
       ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
     }
@@ -128,6 +157,8 @@ int main(int argc, char *argv[]) {
 	create_file(".topdir");
 	create_file(".gitignore");
 	create_file("src\\main.cpp");
+	
+	exit(0);
       }},
       {"run",	[&]() { UNIMPLEMENTED(); }},
       {"srun",	[&]() { UNIMPLEMENTED(); }},
@@ -136,22 +167,56 @@ int main(int argc, char *argv[]) {
       {"sln",	[&]() { UNIMPLEMENTED(); }},
   };
 
+  auto run_msbuild = [&](std::string config="Debug") {
+    if (!quiet) print("\n + Running MSBuild [{}]...\n", config);
+    auto msbuild = run_process("D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe", "");
+    wait_and_close_process(msbuild);
+  };
+  
+  auto run_premake = [&]() {
+    if (!quiet) print("\n + Running Premake5...\n");
+    auto premake = run_process("D:\\bin\\premake 5.0 beta2\\premake5.exe", "vs2022");
+    wait_and_close_process(premake);
+  };
 
   // parse command line arguments
-  if (arg){
-    do {
-      std::string a{arg.pop_arg()};
-      bool matched{false};
-      for (auto &subcmd : subcommands) {
-        if (a == subcmd.name) {
+  while (arg) {
+    std::string a{arg.pop_arg()};
+    bool matched{false};
+    for (auto &subcmd : subcommands) {
+      if (a == subcmd.name) {
     	matched = true;
-          subcmd.func();
-        }
+        subcmd.func();
       }
-      if (!matched){
+    }
+    if (!matched){
+      if (config.empty()){
+	config = a;
+	// check if the config is valid
+	bool valid{false};
+	for (auto& c : valid_configs) {
+	  if (config == c){
+	    valid = true;
+	    break;
+	  }
+	}
+	if (!valid) {
+	  ERR("`{}` is not a valid config!\n", config);
+	}
+      } else {
         ERR("Invalid subcommand or flag `{}`", a);
       }
-    } while (arg);
+    }
+  };
+
+  if (config.empty()) config="Debug";
+
+  change_to_root_dir();
+
+  if (!not_build){
+    run_premake();
+    run_msbuild(config);
   }
+  
   return 0;
 }
