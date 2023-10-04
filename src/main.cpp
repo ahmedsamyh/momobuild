@@ -1,61 +1,28 @@
 #define STDCPP_IMPLEMENTATION
+#define USE_WIN32
 #include <functional>
 #include <stdcpp.hpp>
 #include <vector>
 #include <filesystem>
 #include <fstream>
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 namespace fs = std::filesystem;
 
 struct Subcmd {
+  bool handled{false};
   std::string name{};
   std::function<void()> func{nullptr};
+
+  bool handle(const std::string& a){
+    if (!handled && a==name && func) {
+      func();
+      handled = true;
+      return true;
+    }
+    return false;
+  }
 };
 
 #define ROOT_IDENTIFIER ".topdir"
-
-PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout=false) {
-  STARTUPINFOA startupinfo{};
-  if (no_stdout){
-    startupinfo.dwFlags |= STARTF_USESTDHANDLES;
-    startupinfo.hStdOutput = NULL;
-  }
-  startupinfo.cb = sizeof(startupinfo);
-  PROCESS_INFORMATION child_process_info{};
-
-  std::string full_cmd = FMT("{} {}", program, cmd).c_str();
-  
-  if (!CreateProcessA(NULL,
-		      LPSTR(full_cmd.c_str()),
-  	              NULL,
-                      NULL,
-                      TRUE,
-                      NORMAL_PRIORITY_CLASS,
-                      NULL,
-                      NULL,
-                      &startupinfo,&child_process_info)) {
-    ERR("Could not create child process! {}\n", GetLastError());
-  };
-  return child_process_info;
-}
-
-
-void wait_and_close_process(PROCESS_INFORMATION proc){
-  if (WaitForSingleObject(proc.hProcess, INFINITE) == WAIT_FAILED){
-    ERR("Could not wait until child process finishes {}", GetLastError());
-  }
-
-  DWORD proc_exit_code{};
-  GetExitCodeProcess(proc.hProcess, &proc_exit_code);
-  if (proc_exit_code != 0){
-    fprint(std::cerr, "ERROR: Process exited with code: {}\n", proc_exit_code);
-    exit(proc_exit_code);
-  }
-  
-  CloseHandle(proc.hProcess);
-  CloseHandle(proc.hThread);
-}
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -69,6 +36,7 @@ int main(int argc, char *argv[]) {
   bool not_build{false};
   bool executable_name_provided{false};
   bool will_run{false};
+  bool will_srun{false};
   std::string og_dir{fs::current_path().string()};
   std::string project_name{};
   std::string config{""};
@@ -99,6 +67,7 @@ int main(int argc, char *argv[]) {
 	  "    dir   - Opens the directory of the builded program.\n"
 	  "    clean - Cleans the left-over things from the last build.\n"
 	  "    sln   - Opens the .sln file of the project.\n");
+    exit(0);
   };
 
   /* changes to the project root dir */
@@ -137,7 +106,7 @@ int main(int argc, char *argv[]) {
     SetCurrentDirectoryA("build");
       WIN32_FIND_DATAA file_data{};
       if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
-        ERR("Could not find .sln file in `build\\`\n");
+        ERR("Could not find .sln file in `build\\`\n\nNOTE: Please build the project first\n");
       }
       project_name = file_data.cFileName;
       // remove `.sln` from the filename
@@ -146,60 +115,64 @@ int main(int argc, char *argv[]) {
   };
 
   std::vector<Subcmd> subcommands = {
-      {"/Q",	[&]() { quiet = true; }},
-      {"/Rdst", [&]() { UNIMPLEMENTED(); }},
-      {"/h",    help},
-      {"/nb",	[&]() { not_build = true; }},
-      {"/ex",   [&]() { executable_name_provided = true; }},
-      {"help",  help},
-      {"init",	[&]() {
-	if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
-	if (!quiet) print("{}: Initializing Project...\n", "momobuild");
-	// create folders
-	auto create_dir = [&](const std::string& dir) {
-	  if (!fs::exists(dir)) {
-	    fs::create_directory(dir);
-	    if (!quiet) print("INFO: Created {}\\...\n", dir);
-	  }
-	};
-	auto create_file = [&](const std::string& file, const std::string& content={}){
-	  if (!fs::exists(file)) {
-	    std::ofstream ofs;
-	    ofs.open(file, std::ios::binary | std::ios::out);
-	    if (!ofs.is_open()) {
-	      ERR("Could not open file {} for writing.\n", file);
-	    }
-	    if (!content.empty()){
-	      ofs.write((char*)content.c_str(), content.size());
-	    }
-	    ofs.close();
-	    if (!quiet) print("INFO: Created {}...\n", file);
-	  }
-	};
-	
-	create_dir("src");
-	create_dir("bin");
-	create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
-	create_dir("bin\\Debug");
-	create_dir("build");
-	create_dir("lib");
-	create_dir("include");
+    {false, "/Q",	[&]() { quiet = true; }},
+    {false, "/Rdst", [&]() { UNIMPLEMENTED(); }},
+    {false, "/h",    help},
+    {false, "/nb",	[&]() { not_build = true; }},
+    {false, "/ex",   [&]() { executable_name_provided = true; }},
+    {false, "help",  help},
+    {false, "init",	[&]() {
+      if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
+      if (!quiet) print("{}: Initializing Project...\n", "momobuild");
+      // create folders
+      auto create_dir = [&](const std::string& dir) {
+        if (!fs::exists(dir)) {
+          fs::create_directory(dir);
+          if (!quiet) print("INFO: Created {}\\...\n", dir);
+        }
+      };
+      auto create_file = [&](const std::string& file, const std::string& content={}){
+        if (!fs::exists(file)) {
+          std::ofstream ofs;
+          ofs.open(file, std::ios::binary | std::ios::out);
+          if (!ofs.is_open()) {
+            ERR("Could not open file {} for writing.\n", file);
+          }
+          if (!content.empty()){
+            ofs.write((char*)content.c_str(), content.size());
+          }
+          ofs.close();
+          if (!quiet) print("INFO: Created {}...\n", file);
+        }
+      };
+      
+      create_dir("src");
+      create_dir("bin");
+      create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
+      create_dir("bin\\Debug");
+      create_dir("build");
+      create_dir("lib");
+      create_dir("include");
 
-	// create files
-	create_file("premake5.lua");
-	create_file(".topdir");
-	create_file(".gitignore");
-	create_file("src\\main.cpp");
-	
-	exit(0);
-      }},
-      {"run",	[&]() {
-	will_run=true;
-      }},
-      {"srun",	[&]() { UNIMPLEMENTED(); }},
-      {"dir",	[&]() { UNIMPLEMENTED(); }},
-      {"clean", [&]() { UNIMPLEMENTED(); }},
-      {"sln",	[&]() { UNIMPLEMENTED(); }},
+      // create files
+      create_file("premake5.lua");
+      create_file(".topdir");
+      create_file(".gitignore");
+      create_file("src\\main.cpp");
+      
+      exit(0);
+    }},
+    {false, "run",	[&]() {
+      if (will_srun) ERR("`srun` and `run` cannot be called simultaneously\n");
+      will_run=true;
+    }},
+    {false, "srun",	[&]() {
+      if (will_run) ERR("`srun` and `run` cannot be called simultaneously\n");
+      will_srun=true;
+    }},
+    {false, "dir",	[&]() { UNIMPLEMENTED(); }},
+    {false, "clean",	[&]() { UNIMPLEMENTED(); }},
+    {false, "sln",	[&]() { UNIMPLEMENTED(); }},
   };
 
   auto run_msbuild = [&](std::string config="Debug") {
@@ -219,19 +192,29 @@ int main(int argc, char *argv[]) {
     wait_and_close_process(premake);
   };
 
+  auto run = [&](){
+    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", project_name, config);
+    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args);
+    wait_and_close_process(child);
+  };
+
+  auto srun = [&](){
+    if (!quiet) print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", project_name, config);
+    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args, false, true);
+    wait_and_close_process(child);
+  };
+
   // parse command line arguments
   while (arg) {
     std::string a{arg.pop_arg()};
     bool matched{false};
     for (auto &subcmd : subcommands) {
-      if (a == subcmd.name) {
+      if (subcmd.handle(a)) {
     	matched = true;
-        subcmd.func();
       }
     }
     if (!matched){
       if (config.empty()){
-	VAR(config);
         config = a;
 	// check if the config is valid
 	bool valid{false};
@@ -251,21 +234,32 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  if (config.empty()) config="Debug";
-
   change_to_root_dir();
+  
+  if (config.empty()) {
+    config="Debug";
+    if (will_run){
+      get_project_name();
+      run();
+      exit(0);
+    } else if (will_srun){
+      get_project_name();
+      srun();
+      exit(0);
+    }
+  }
 
   if (!not_build){
     run_premake();
     ASSERT(fs::exists("build"));
-    get_project_name();    
+    get_project_name();
     run_msbuild(config);
   }
 
   if (will_run){
-    if (!quiet) print("\n{}: Running {}.exe[{}]...\n", "momobuild", project_name, config);
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, project_name), executable_args);
-    wait_and_close_process(child);
+    run();
+  } else if (will_srun){
+    srun();
   }
   
   return 0;

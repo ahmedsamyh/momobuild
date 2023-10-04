@@ -6,6 +6,15 @@
 #include <string>
 #include <algorithm>
 
+#if defined USE_WIN32
+#define WIN32_MEAN_AND_LEAN
+#include <windows.h>
+
+PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout=false, bool new_console=false);
+void wait_and_close_process(PROCESS_INFORMATION proc);
+
+#endif
+
 #define VAR(name) print("{}: {}\n", #name, name)
 #define VAR_STR(name) std::format("{}: {}", #name, name)
 #define NL() print("\n")
@@ -68,6 +77,53 @@ std::string& toupper(std::string& s);
 //////////////////////////////////////////////////
 #if defined STDCPP_IMPLEMENTATION || STDCPP_IMPL
 
+#if defined USE_WIN32
+
+PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout, bool new_console) {
+  STARTUPINFOA startupinfo{};
+  if (no_stdout){
+    startupinfo.dwFlags |= STARTF_USESTDHANDLES;
+    startupinfo.hStdOutput = NULL;
+  }
+  startupinfo.cb = sizeof(startupinfo);
+  PROCESS_INFORMATION child_process_info{};
+
+  std::string full_cmd = FMT("{} {}", program, cmd).c_str();
+
+  DWORD creation_flags = NORMAL_PRIORITY_CLASS;
+  if (new_console) creation_flags |= CREATE_NEW_CONSOLE;
+  
+  if (!CreateProcessA(NULL,
+		      LPSTR(full_cmd.c_str()),
+  	              NULL,
+                      NULL,
+                      TRUE,
+                      creation_flags,
+                      NULL,
+                      NULL,
+                      &startupinfo,&child_process_info)) {
+    ERR("Could not create child process! {}\n", GetLastError());
+  };
+  return child_process_info;
+}
+
+void wait_and_close_process(PROCESS_INFORMATION proc){
+  if (WaitForSingleObject(proc.hProcess, INFINITE) == WAIT_FAILED){
+    ERR("Could not wait until child process finishes {}", GetLastError());
+  }
+
+  DWORD proc_exit_code{};
+  GetExitCodeProcess(proc.hProcess, &proc_exit_code);
+  if (proc_exit_code != 0){
+    fprint(std::cerr, "ERROR: Process exited with code: {}\n", proc_exit_code);
+    exit(proc_exit_code);
+  }
+  
+  CloseHandle(proc.hProcess);
+  CloseHandle(proc.hThread);
+}
+
+#endif
 
 void __print(std::ostream &file){};
 
