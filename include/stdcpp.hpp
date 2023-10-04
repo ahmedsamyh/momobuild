@@ -12,6 +12,7 @@
 
 PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout=false, bool new_console=false);
 void wait_and_close_process(PROCESS_INFORMATION proc);
+void open_dir(const std::string& dir);
 
 #endif
 
@@ -121,6 +122,13 @@ void wait_and_close_process(PROCESS_INFORMATION proc){
   
   CloseHandle(proc.hProcess);
   CloseHandle(proc.hThread);
+}
+
+void open_dir(const std::string& dir){
+  HINSTANCE res = ShellExecuteA(NULL, "open", dir.c_str(), NULL, NULL, SW_MAXIMIZE);
+  if (INT_PTR(res) < 32) {
+    ERR("Could not execute shell command {}\n", INT_PTR(res));
+  }
 }
 
 #endif

@@ -5,6 +5,7 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <shellapi.h>
 namespace fs = std::filesystem;
 
 struct Subcmd {
@@ -56,7 +57,7 @@ int main(int argc, char *argv[]) {
 	  "\nFlags: \n"
 	  "    /Q    - Quite mode; do not output anything\n"	
 	  "    /Rdst - Copies vcredist files to .\\redist\n"	
-	  "    /h    - Same as the help subcommand.\n"		
+	  "    /h,/? - Same as the help subcommand.\n"		
 	  "    /nb   - Do not build and run .\n"		
 	  "    /ex   - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
@@ -122,6 +123,7 @@ int main(int argc, char *argv[]) {
     {false, "/Q",	[&]() { quiet = true; }},
     {false, "/Rdst", [&]() { UNIMPLEMENTED(); }},
     {false, "/h",    help},
+    {false, "/?",    help},
     {false, "/nb",	[&]() { not_build = true; }},
     {false, "/ex",   [&]() { executable_name_provided = true; }},
     {false, "help",  help},
@@ -174,7 +176,10 @@ int main(int argc, char *argv[]) {
       if (will_run) ERR("`srun` and `run` cannot be called simultaneously\n");
       will_srun=true;
     }},
-    {false, "dir",	[&]() { UNIMPLEMENTED(); }},
+    {false, "dir",	[&]() {
+      change_to_root_dir();
+      open_dir(FMT("bin\\{}\\", (config.empty() ? "Debug" : config)));
+    }},
     {false, "clean",	[&]() { UNIMPLEMENTED(); }},
     {false, "sln",	[&]() { UNIMPLEMENTED(); }},
   };
@@ -244,15 +249,8 @@ int main(int argc, char *argv[]) {
   
   if (config.empty()) {
     config="Debug";
-    if (will_run){
-      get_project_name();
-      run();
-      exit(0);
-    } else if (will_srun){
-      get_project_name();
-      srun();
-      exit(0);
-    }
+    if (will_run || will_srun)
+      not_build=true;
   }
 
   if (!not_build){
@@ -263,8 +261,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (will_run){
+    get_project_name();
     run();
   } else if (will_srun){
+    get_project_name();
     srun();
   }
   
