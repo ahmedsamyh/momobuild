@@ -45,6 +45,7 @@ int main(int argc, char *argv[]) {
   bool quiet{false};
   bool not_build{false};
   bool will_copy_redist{false};
+  bool will_help{false};
   bool open_sln{false};
   bool executable_name_provided{false};
   std::string executable_name{};
@@ -136,8 +137,8 @@ int main(int argc, char *argv[]) {
   std::vector<Flag> flags = {
     {false, "/Q",    [&]() { quiet = true; }},
     {false, "/Rdst", [&]() { will_copy_redist=true; }},
-    {false, "/h",    help},
-    {false, "/?",    help},
+    {false, "/h",    [&]() { will_help = true; }},
+    {false, "/?",    [&]() { will_help = true; }},
     {false, "/nb",   [&]() { not_build = true; }},
     {false, "/ex",   [&]() { executable_name_provided = true; }},
     {false, "/v",    [&]() {
@@ -147,8 +148,8 @@ int main(int argc, char *argv[]) {
   };
   
   std::vector<Subcmd> subcommands = {
-    {false, "help",  help},
-    {false, "init",	[&]() {
+    {false, "help",  [&]() { will_help = true; }},
+    {false, "init",  [&]() {
       if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
       if (!quiet) print("{}: Initializing Project...\n", "momobuild");
       // create folders
@@ -247,13 +248,59 @@ int main(int argc, char *argv[]) {
     SetCurrentDirectoryA(root_dir.c_str());
   };
 
+
+  // validators
+  auto is_valid_config = [&](const std::string& a){
+    for (auto& c : valid_configs){
+      if (a==c){
+	return true;
+      }
+    }
+    return false;
+  };
+
+  auto is_valid_flag = [&](const std::string& a){
+    for (auto& f : flags){
+      if (f.name == a){
+	return true;
+      }
+    }
+    return false;
+  };
+
+  auto is_valid_subcommand = [&](const std::string& a){
+    for (auto& s : subcommands){
+      if (s.name == a){
+	return true;
+      }
+    }
+    return false;
+  };
+
+
   // parse command line arguments
   // Usage: momobuild.exe [Config] [Flag] [Subcommand]
   bool config_handled{false};
   bool flag_handled{false};
   bool subcommand_handled{false};
+    
+  parse_arg:
   while (arg) {
     std::string a = arg.pop_arg();
+
+    // try to parse as executable name or args
+    if (subcommand_handled && (will_run || will_srun)){
+      // if the `ex` arg is provided handle that
+      if (executable_name.empty() && executable_name_provided){
+	executable_name = a;
+	goto parse_arg;
+      }
+      // append the arg to the executable args
+      executable_args += (executable_args.empty() ? "" : " ");
+      executable_args += a;
+      goto parse_arg;
+    }
+    
     // check if the argument starts with `/`
     if (a[0] == '/'){ // this is a flag
       // check if the flag is valid
@@ -270,14 +317,87 @@ int main(int argc, char *argv[]) {
       if (!flag_handled){
 	fprint(std::cerr, "ERROR: Invalid flag `{}`\n", a);
 	exit(1);
+      } else {
+	goto parse_arg;
+      }
+    } else {
+      // check if it's a config
+      if (!config_handled) {
+        if (is_valid_config(a)){
+	  config_handled = true;
+	  goto parse_arg;
+	}
+
+	/// no config, subcomand
+
+	// if the subcommand is already handled
+	if (subcommand_handled){ 
+	  if (is_valid_subcommand(a)){
+	    fprint(std::cerr, "ERROR: Subcommand already provided!\n");
+	    exit(1);
+	  } else{
+	    fprint(std::cerr, "ERROR: Invalid subcommand `{}`\n", a);
+	    exit(1);
+	  }
+	}
+	for (auto& s : subcommands){
+	  if (s.handle(a)){
+	    subcommand_handled=true;
+	    break;
+	  }
+	}
+	if (!subcommand_handled){
+	  fprint(std::cerr, "ERROR: Invalid config/subcommand `{}`\n", a);
+	  exit(1);
+	} else {
+	  goto parse_arg;
+	}
+      } else {
+	/// config provided, so try to parse as subcommand
+
+        // if the subcommand is already handled
+	if (subcommand_handled){ 
+	  if (is_valid_subcommand(a)){
+	    fprint(std::cerr, "ERROR: Subcommand already provided!\n");
+	    exit(1);
+	  } else{
+	    fprint(std::cerr, "ERROR: Invalid subcommand `{}`\n", a);
+	    exit(1);
+	  }
+	}
+	for (auto& s : subcommands){
+	  if (s.handle(a)){
+	    subcommand_handled=true;
+	    break;
+	  }
+	}
+	if (!subcommand_handled){
+	  fprint(std::cerr, "ERROR: Invalid subcommand `{}`\n", a);
+	  exit(1);
+	} else {
+	  goto parse_arg;
+	}
+	
       }
     }
   }
+
+  if (executable_name_provided){
+    VAR(executable_name);
+  }
+  if (!executable_args.empty()){
+    VAR(executable_args);
+  }
+  
 
   return 0;
   //////////////////////////////////////////////////
 
   change_to_root_dir();
+
+  if (will_help){
+    help();
+  }
 
   if (config.empty()) {
     config="Debug";
