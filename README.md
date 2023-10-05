@@ -5,8 +5,8 @@ Build system for C/CPP made for myself.
 This isn't technically a build system i guess? Because from what i understand, [premake5](https://premake.github.io/) and [CMake](https://cmake.org/) are build system generators. And [msbuild](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) and [GNU Make](https://www.gnu.org/software/make/) are the actual build systems. Since this just calls premake5 and msbuild, i guess it's an automator of some sort...
 
 # Todo
-- [] customize which build system generator to use
-- [] customize which compiler to use
+- [ ] customize which build system generator to use
+- [ ] customize which compiler to use
 
 
 ## References
