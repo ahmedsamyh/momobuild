@@ -230,8 +230,8 @@ int main(int argc, char *argv[]) {
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
+      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name), quiet));
+      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name), quiet));
     } else {
       auto msbuild = win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
       win::wait_and_close_process(msbuild);
