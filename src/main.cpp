@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
   bool not_build{false};
   bool will_copy_redist{false};
   bool will_help{false};
+  bool will_clean{false};
   bool open_sln{false};
   bool executable_name_provided{false};
   std::string executable_name{};
@@ -202,9 +203,9 @@ int main(int argc, char *argv[]) {
     {false, "dir",	[&]() {
       change_to_root_dir();
       if (config == "All") config="Debug";
-      open_dir(FMT("bin\\{}\\", (config.empty() ? "Debug" : config)));
+      win::open_dir(FMT("bin\\{}\\", (config.empty() ? "Debug" : config)));
     }},
-    {false, "clean",	[&]() { UNIMPLEMENTED(); }},
+    {false, "clean",	[&]() { will_clean = true; }},
     {false, "sln",	[&]() {
       open_sln=true;
     }},
@@ -213,18 +214,18 @@ int main(int argc, char *argv[]) {
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
-      wait_and_close_process(run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
-      wait_and_close_process(run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
+      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name)));
+      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name)));
     } else {
-      auto msbuild = run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
-      wait_and_close_process(msbuild);
+      auto msbuild = win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
+      win::wait_and_close_process(msbuild);
     }
   };
   
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
-    auto premake = run_process(PREMAKE5_PATH, "vs2022", quiet);
-    wait_and_close_process(premake);
+    auto premake = win::run_process(PREMAKE5_PATH, "vs2022", quiet);
+    win::wait_and_close_process(premake);
   };
 
   auto run = [&](){
@@ -232,9 +233,9 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    SetCurrentDirectoryA(og_dir.c_str());
-    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
-    wait_and_close_process(child);
+    SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
+    auto child = win::run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    win::wait_and_close_process(child);
     SetCurrentDirectoryA(root_dir.c_str());
   };
 
@@ -243,9 +244,9 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    SetCurrentDirectoryA(og_dir.c_str());
-    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
-    wait_and_close_process(child);
+    SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
+    auto child = win::run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
+    win::wait_and_close_process(child);
     SetCurrentDirectoryA(root_dir.c_str());
   };
 
@@ -388,6 +389,13 @@ int main(int argc, char *argv[]) {
     help();
   }
 
+  if (will_clean){
+    if (!quiet) print("{}: Cleaning project...\n", "momobuild");
+    if (!confirmation("This will clean the previous build, continue?")) exit(0);
+    
+    exit(0);
+  }
+
   if (config.empty()) {
     config="Debug";
     if (will_run || will_srun)
@@ -411,7 +419,7 @@ int main(int argc, char *argv[]) {
   if (open_sln) {
     get_project_name();
     if (!quiet) print("{}: Opening {}.sln...\n", "momobuild", project_name);
-    open_file(FMT("build\\{}.sln", project_name));
+    win::open_file(FMT("build\\{}.sln", project_name));
     exit(0);
   }
 

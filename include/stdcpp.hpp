@@ -10,11 +10,15 @@
 #define WIN32_MEAN_AND_LEAN
 #include <windows.h>
 
+namespace win {
+
 PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout=false, bool new_console=false);
 void wait_and_close_process(PROCESS_INFORMATION proc);
 HINSTANCE open_dir(const std::string& dir);
 HINSTANCE open_file(const std::string& file);
-
+std::string last_error_str();
+  
+}; // namespace win
 #endif
 
 #define VAR(name) print("{}: {}\n", #name, name)
@@ -81,6 +85,8 @@ std::string& toupper(std::string& s);
 
 #if defined USE_WIN32
 
+namespace win {
+  
 PROCESS_INFORMATION run_process(const std::string& program, const std::string& cmd, bool no_stdout, bool new_console) {
   STARTUPINFOA startupinfo{};
   if (no_stdout){
@@ -104,7 +110,7 @@ PROCESS_INFORMATION run_process(const std::string& program, const std::string& c
                       NULL,
                       NULL,
                       &startupinfo,&child_process_info)) {
-    ERR("Could not create child process! {}\n", GetLastError());
+    ERR("Could not create child process! {}\n", last_error_str());
   };
   return child_process_info;
 }
@@ -136,6 +142,27 @@ HINSTANCE open_file(const std::string& file){
   }
   return res;
 }
+
+std::string last_error_str(){
+  DWORD err = GetLastError();
+  if (err==0) return {};
+  LPSTR message_buffer{nullptr};
+  DWORD size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,	// dwFlags
+			      NULL,												// lpSource
+			      err,												// dwMessageId
+			      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),							// dwLanguageId
+			      LPSTR(&message_buffer),										//lpBuffer
+			      0,												// nSize
+			      NULL												// va_lists *Arguments
+			      );
+  if (size==0){
+    ERR("{} Failed\n", __func__);
+  }
+  std::string message(message_buffer, size_t(size));
+  return message;
+}
+
+}; // namespace win
 
 #endif
 
