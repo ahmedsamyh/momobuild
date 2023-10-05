@@ -102,8 +102,6 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  change_to_root_dir();
-  SetCurrentDirectoryA(og_dir.c_str());
 
   /* asks for confirmation [y/n] */
   auto confirmation = [&](const std::string question, bool _default=true){
