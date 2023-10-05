@@ -324,6 +324,7 @@ int main(int argc, char *argv[]) {
       // check if it's a config
       if (!config_handled) {
         if (is_valid_config(a)){
+	  config = a;
 	  config_handled = true;
 	  goto parse_arg;
 	}
@@ -333,7 +334,7 @@ int main(int argc, char *argv[]) {
 	// if the subcommand is already handled
 	if (subcommand_handled){ 
 	  if (is_valid_subcommand(a)){
-	    fprint(std::cerr, "ERROR: Subcommand already provided!\n");
+	    fprint(std::cerr, "ERROR: Can only provide one subcommand at a time\n");
 	    exit(1);
 	  } else{
 	    fprint(std::cerr, "ERROR: Invalid subcommand `{}`\n", a);
@@ -358,7 +359,7 @@ int main(int argc, char *argv[]) {
         // if the subcommand is already handled
 	if (subcommand_handled){ 
 	  if (is_valid_subcommand(a)){
-	    fprint(std::cerr, "ERROR: Subcommand already provided!\n");
+	    fprint(std::cerr, "ERROR: Can only provide one subcommand at a time\n");
 	    exit(1);
 	  } else{
 	    fprint(std::cerr, "ERROR: Invalid subcommand `{}`\n", a);
@@ -382,16 +383,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (executable_name_provided){
-    VAR(executable_name);
-  }
-  if (!executable_args.empty()){
-    VAR(executable_args);
-  }
-  
-
-  return 0;
-  //////////////////////////////////////////////////
 
   change_to_root_dir();
 
