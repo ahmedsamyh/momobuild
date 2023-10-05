@@ -8,6 +8,7 @@
 #include <shellapi.h>
 namespace fs = std::filesystem;
 
+
 struct Subcmd {
   bool handled{false};
   std::string name{};
@@ -23,11 +24,15 @@ struct Subcmd {
   }
 };
 
+typedef Subcmd Flag;
+
 #define ROOT_IDENTIFIER ".topdir"
 #define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
 #define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
+
+#define VERSION ("1.0.0")
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -46,6 +51,7 @@ int main(int argc, char *argv[]) {
   bool will_run{false};
   bool will_srun{false};
   std::string og_dir{fs::current_path().string()};
+  std::string root_dir{};  
   std::string project_name{};
   std::string config{""};
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
@@ -65,6 +71,7 @@ int main(int argc, char *argv[]) {
 	  "    /nb   - Do not build and run .\n"		
 	  "    /ex   - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
+	  "    /v    - Prints the version of momobuild.\n"
 	  
 	  "\nSubcommands: \n"
 	  "    help  - Displays how to use this script.\n"
@@ -86,11 +93,14 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
     }
-    std::string root_dir{fs::current_path().string()};
+    root_dir = fs::current_path().string();
     if (fs::current_path().stem().string().empty()){
       ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
     }
   };
+
+  change_to_root_dir();
+  SetCurrentDirectoryA(og_dir.c_str());
 
   /* asks for confirmation [y/n] */
   auto confirmation = [&](const std::string question, bool _default=true){
@@ -123,15 +133,20 @@ int main(int argc, char *argv[]) {
     SetCurrentDirectoryA("..\\");
   };
 
-  std::vector<Subcmd> subcommands = {
-    {false, "/Q",	[&]() { quiet = true; }},
-    {false, "/Rdst", [&]() {
-      will_copy_redist=true;
-    }},
+  std::vector<Flag> flags = {
+    {false, "/Q",    [&]() { quiet = true; }},
+    {false, "/Rdst", [&]() { will_copy_redist=true; }},
     {false, "/h",    help},
     {false, "/?",    help},
-    {false, "/nb",	[&]() { not_build = true; }},
+    {false, "/nb",   [&]() { not_build = true; }},
     {false, "/ex",   [&]() { executable_name_provided = true; }},
+    {false, "/v",    [&]() {
+      print("Momobuild Version {}\n", VERSION);
+      exit(0);
+    }}
+  };
+  
+  std::vector<Subcmd> subcommands = {
     {false, "help",  help},
     {false, "init",	[&]() {
       if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
@@ -215,8 +230,10 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    SetCurrentDirectoryA(og_dir.c_str());
+    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
     wait_and_close_process(child);
+    SetCurrentDirectoryA(root_dir.c_str());
   };
 
   auto srun = [&](){
@@ -224,41 +241,41 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
+    SetCurrentDirectoryA(og_dir.c_str());
+    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
     wait_and_close_process(child);
+    SetCurrentDirectoryA(root_dir.c_str());
   };
 
   // parse command line arguments
+  // Usage: momobuild.exe [Config] [Flag] [Subcommand]
+  bool config_handled{false};
+  bool flag_handled{false};
+  bool subcommand_handled{false};
   while (arg) {
-    std::string a{arg.pop_arg()};
-    bool matched{false};
-    for (auto &subcmd : subcommands) {
-      if (subcmd.handle(a)) {
-    	matched = true;
+    std::string a = arg.pop_arg();
+    // check if the argument starts with `/`
+    if (a[0] == '/'){ // this is a flag
+      // check if the flag is valid
+      if (flag_handled){
+	fprint(std::cerr, "ERROR: Can only provide one flag at a time\n");
+	exit(1);
+      }
+      for (auto& f : flags){
+        if (f.handle(a)){
+	  flag_handled = true;
+	  break;
+	}
+      }
+      if (!flag_handled){
+	fprint(std::cerr, "ERROR: Invalid flag `{}`\n", a);
+	exit(1);
       }
     }
-    if (!matched){
-      if (config.empty()){
-        config = a;
-	// check if the config is valid
-	bool valid{false};
-	for (auto& c : valid_configs) {
-	  if (config == c){
-	    valid = true;
-	    break;
-	  }
-	}
-	if (!valid) {
-	  ERR("`{}` is not a valid config!\n", config);
-	}
-      } else if (executable_name.empty() && executable_name_provided && (will_run || will_srun)) {
-	executable_name = a;
-      } else {
-	executable_args += (!executable_args.empty() ? " " : "");
-	executable_args += a;
-      }
-    }
-  };
+  }
+
+  return 0;
+  //////////////////////////////////////////////////
 
   change_to_root_dir();
 
