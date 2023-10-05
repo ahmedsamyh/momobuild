@@ -110,14 +110,16 @@ PROCESS_INFORMATION run_process(const std::string& program, const std::string& c
                       NULL,
                       NULL,
                       &startupinfo,&child_process_info)) {
-    ERR("Could not create child process! {}\n", last_error_str());
+    fprint(std::cerr, "ERROR: {}(\"{}\", \"{}\", {}, {}) -> {}\n", __func__, program, cmd, no_stdout, new_console, last_error_str());
+    exit(1);
   };
   return child_process_info;
 }
 
 void wait_and_close_process(PROCESS_INFORMATION proc){
   if (WaitForSingleObject(proc.hProcess, INFINITE) == WAIT_FAILED){
-    ERR("Could not wait until child process finishes {}", GetLastError());
+    fprint(std::cerr, "ERROR: {} -> {}\n", __func__, last_error_str());
+    exit(1);
   }
 
   DWORD proc_exit_code{};

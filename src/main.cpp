@@ -8,7 +8,6 @@
 #include <shellapi.h>
 namespace fs = std::filesystem;
 
-
 struct Subcmd {
   bool handled{false};
   std::string name{};
@@ -34,7 +33,6 @@ typedef Subcmd Flag;
 
 #define VERSION ("1.0.1")
 
-
 int main(int argc, char *argv[]) {
   ARG();
   std::cout << std::unitbuf;
@@ -49,6 +47,7 @@ int main(int argc, char *argv[]) {
   bool will_help{false};
   bool will_clean{false};
   bool open_sln{false};
+  bool force{false};
   bool executable_name_provided{false};
   std::string executable_name{};
   bool will_run{false};
@@ -75,6 +74,7 @@ int main(int argc, char *argv[]) {
 	  "    /ex   - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
 	  "    /v    - Prints the version of momobuild.\n"
+	  "    /Y    - Will answer `yes` on all confirmations.\n"
 	  
 	  "\nSubcommands: \n"
 	  "    help  - Displays how to use this script.\n"
@@ -107,6 +107,7 @@ int main(int argc, char *argv[]) {
 
   /* asks for confirmation [y/n] */
   auto confirmation = [&](const std::string question, bool _default=true){
+    if (force) return true;
     std::string response{"AAA"};
     str::tolower(response);
     auto valid = [&](const std::string& str){ return str=="" || str=="y" || str=="yes" || str=="n" || str=="no"; };
@@ -136,6 +137,20 @@ int main(int argc, char *argv[]) {
     SetCurrentDirectoryA("..\\");
   };
 
+  auto delete_file = [&](const std::string& file){
+    if (fs::exists(file)){
+      return fs::remove(file);
+    }
+    return false;
+  };
+
+  auto delete_dir = [&](const std::string& dir){
+    if (fs::exists(dir)){
+      return int(fs::remove_all(dir));
+    }
+    return 0;
+  };
+
   std::vector<Flag> flags = {
     {false, "/Q",    [&]() { quiet = true; }},
     {false, "/Rdst", [&]() { will_copy_redist=true; }},
@@ -146,7 +161,8 @@ int main(int argc, char *argv[]) {
     {false, "/v",    [&]() {
       print("Momobuild Version {}\n", VERSION);
       exit(0);
-    }}
+    }},
+    {false, "/Y",    [&]() { force=true; }}
   };
   
   std::vector<Subcmd> subcommands = {
@@ -392,6 +408,14 @@ int main(int argc, char *argv[]) {
   if (will_clean){
     if (!quiet) print("{}: Cleaning project...\n", "momobuild");
     if (!confirmation("This will clean the previous build, continue?")) exit(0);
+    size_t cleaned{0};
+    if (delete_dir("build") && !quiet){
+      print("INFO: Removed build\\...\n");
+      cleaned++;
+    }
+    if (cleaned==0 && !quiet){
+      print("INFO: Nothing to remove...\n");
+    }
     
     exit(0);
   }
