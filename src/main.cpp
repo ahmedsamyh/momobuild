@@ -32,7 +32,7 @@ typedef Subcmd Flag;
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
 
-#define VERSION ("1.0.0")
+#define VERSION ("1.0.1")
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -382,7 +382,6 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-
 
   change_to_root_dir();
 
