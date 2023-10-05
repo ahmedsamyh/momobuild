@@ -8,6 +8,7 @@
 #include <shellapi.h>
 namespace fs = std::filesystem;
 
+
 struct Subcmd {
   bool handled{false};
   std::string name{};
@@ -29,6 +30,8 @@ struct Subcmd {
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
 
+#define VERSION ("1.0.0")
+
 int main(int argc, char *argv[]) {
   ARG();
   std::cout << std::unitbuf;
@@ -46,6 +49,7 @@ int main(int argc, char *argv[]) {
   bool will_run{false};
   bool will_srun{false};
   std::string og_dir{fs::current_path().string()};
+  std::string root_dir{};  
   std::string project_name{};
   std::string config{""};
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
@@ -86,11 +90,14 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
     }
-    std::string root_dir{fs::current_path().string()};
+    root_dir = fs::current_path().string();
     if (fs::current_path().stem().string().empty()){
       ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
     }
   };
+
+  change_to_root_dir();
+  SetCurrentDirectoryA(og_dir.c_str());
 
   /* asks for confirmation [y/n] */
   auto confirmation = [&](const std::string question, bool _default=true){
@@ -132,6 +139,10 @@ int main(int argc, char *argv[]) {
     {false, "/?",    help},
     {false, "/nb",	[&]() { not_build = true; }},
     {false, "/ex",   [&]() { executable_name_provided = true; }},
+    {false, "/v",    [&]() {
+      print("Momobuild Version {}\n", VERSION);
+      exit(0);
+    }},
     {false, "help",  help},
     {false, "init",	[&]() {
       if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
@@ -215,8 +226,10 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    SetCurrentDirectoryA(og_dir.c_str());
+    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
     wait_and_close_process(child);
+    SetCurrentDirectoryA(root_dir.c_str());
   };
 
   auto srun = [&](){
@@ -224,20 +237,38 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    auto child = run_process(FMT("bin\\{}\\{}.exe", config, (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
+    SetCurrentDirectoryA(og_dir.c_str());
+    auto child = run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
     wait_and_close_process(child);
+    SetCurrentDirectoryA(root_dir.c_str());
   };
 
   // parse command line arguments
+  // Usage: momobuild.exe [Config] [Flag] [Subcommand]
+  bool config_handled{false};
+  bool flag_handled{false};
+  bool subcommand_handled{false};
   while (arg) {
     std::string a{arg.pop_arg()};
-    bool matched{false};
-    for (auto &subcmd : subcommands) {
-      if (subcmd.handle(a)) {
-    	matched = true;
+    bool arg_handled{false};
+    if (!(will_run || will_srun)){ 
+      for (auto &subcmd : subcommands) {
+	if (subcmd.handle(a)) {
+	  arg_handled = true;
+	}
+      }
+    } else {
+      if (executable_name.empty() && executable_name_provided){
+	executable_name = a;
+	arg_handled = true;
+      } else {
+	// everything after `run` or `srun` will be passed to the executable being run.
+	executable_args += (!executable_args.empty() ? " " : "");
+	executable_args += a;
+	arg_handled = true;
       }
     }
-    if (!matched){
+    if (!arg_handled){
       if (config.empty()){
         config = a;
 	// check if the config is valid
@@ -251,11 +282,8 @@ int main(int argc, char *argv[]) {
 	if (!valid) {
 	  ERR("`{}` is not a valid config!\n", config);
 	}
-      } else if (executable_name.empty() && executable_name_provided && (will_run || will_srun)) {
-	executable_name = a;
       } else {
-	executable_args += (!executable_args.empty() ? " " : "");
-	executable_args += a;
+	fprint(std::cerr, "ERROR: Invalid Flag/Subcommand `{}`\n", a);
       }
     }
   };
