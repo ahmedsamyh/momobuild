@@ -31,7 +31,7 @@ typedef Subcmd Flag;
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
 
-#define VERSION ("1.0.1")
+#define VERSION ("1.0.2")
 
 int main(int argc, char *argv[]) {
   ARG();
@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
   bool will_copy_redist{false};
   bool will_help{false};
   bool will_clean{false};
+  bool will_show_version{false};
   bool open_sln{false};
   bool force{false};
   bool executable_name_provided{false};
@@ -98,7 +99,9 @@ int main(int argc, char *argv[]) {
     }
     root_dir = fs::current_path().string();
     if (fs::current_path().stem().string().empty()){
-      ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
+      // ERR("Could not find ROOT_IDENTIFIER `{}`\n", ROOT_IDENTIFIER);
+      fprint(std::cerr, "ERROR: You are not inside a project folder. Please use `init` subcommand to initialize a project folder.\n");
+      exit(1);
     }
   };
 
@@ -156,10 +159,7 @@ int main(int argc, char *argv[]) {
     {false, "/?",    [&]() { will_help = true; }},
     {false, "/nb",   [&]() { not_build = true; }},
     {false, "/ex",   [&]() { executable_name_provided = true; }},
-    {false, "/v",    [&]() {
-      print("Momobuild Version {}\n", VERSION);
-      exit(0);
-    }},
+    {false, "/v",    [&]() { will_show_version = true; }},
     {false, "/Y",    [&]() { force=true; }}
   };
   
@@ -397,11 +397,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  change_to_root_dir();
-
+  // subcommands/flags that doesn't need to be in root_dir
+  
   if (will_help){
     help();
   }
+
+  if (will_show_version){
+    print("Momobuild Version {}\n", VERSION);
+    exit(0);
+  }
+  
+  change_to_root_dir();
 
   if (will_clean){
     if (!quiet) print("{}: Cleaning project...\n", "momobuild");
