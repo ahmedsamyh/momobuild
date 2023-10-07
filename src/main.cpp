@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
 	  "    All\n"	 
 	  
 	  "\nFlags: \n"
-	  "    /Q    - Quite mode; do not output anything\n"	
+	  "    /Q    - Quiet mode; do not output anything\n"
 	  "    /Rdst - Copies vcredist files to .\\redist\n"	
 	  "    /h,/? - Same as the help subcommand.\n"		
 	  "    /nb   - Do not build and run .\n"		

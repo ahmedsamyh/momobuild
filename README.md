@@ -7,6 +7,8 @@ This isn't technically a build system i guess? Because from what i understand, [
 # Todo
 - [ ] customize which build system generator to use
 - [ ] customize which compiler to use
+- [ ] automatically initiate a premake5 template
+- [ ] maybe make `cpp-proj` part of this?
 
 
 ## References
