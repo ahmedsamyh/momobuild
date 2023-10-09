@@ -9,6 +9,8 @@
 #include <cstdlib>
 namespace fs = std::filesystem;
 
+// TODO: Implement `reset` subcommand.
+
 struct Subcmd {
   bool handled{false};
   std::string name{};
@@ -32,7 +34,7 @@ typedef Subcmd Flag;
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
 
-#define VERSION ("1.0.2")
+#define VERSION ("1.0.3")
 
 // HOME is a environment variable defined to `C:\Users\<username>\`
 #define HOME std::getenv("HOME")
