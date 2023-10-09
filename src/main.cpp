@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <fstream>
 #include <shellapi.h>
-#include <cstdlib>
 namespace fs = std::filesystem;
 
 // TODO: Implement `reset` subcommand.
@@ -37,9 +36,7 @@ typedef Subcmd Flag;
 #define VERSION ("0.0.3")
 
 // HOME is a environment variable defined to `C:\Users\<username>\`
-#define HOME std::getenv("HOME")
-#define PREMAKE5_TEMPLATE_PATH FMT("{}\\.emacs.d\\snippets\\lua-mode\\premake5", HOME)
-
+#define PREMAKE5_TEMPLATE_PATH FMT("{}\\.emacs.d\\snippets\\lua-mode\\premake5", get_env("HOME"))
 
 int main(int argc, char *argv[]) {
   ARG();

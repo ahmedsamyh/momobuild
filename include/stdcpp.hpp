@@ -63,6 +63,11 @@ void __print(std::ostream &file, T arg, Types... args) {
   __print(file, args...);
 }
 
+#define MAX_ENV_SIZE (1024*2)
+static std::string __env_buf(MAX_ENV_SIZE, '_');
+static size_t __env_size{0};
+std::string get_env(const std::string& value);
+
 #define ARG() Arg arg(argc, argv)
 
 struct Arg {
@@ -226,6 +231,17 @@ void __print(std::ostream &file){};
 void log(){};
 
 void panic() { exit(1); };
+
+std::string get_env(const std::string& value){
+  getenv_s(&__env_size, (char*)__env_buf.c_str(), MAX_ENV_SIZE, value.c_str());
+  if (__env_size > 0){
+    __env_buf.resize(__env_size-1);
+  } else {
+    return {};
+  }
+  std::string res = __env_buf;
+  return res;
+}
 
 // Arg --------------------------------------------------
 Arg::Arg(int &_argc, char **&_argv) {
