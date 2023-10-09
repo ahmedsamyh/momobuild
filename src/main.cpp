@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <shellapi.h>
+#include <cstdlib>
 namespace fs = std::filesystem;
 
 struct Subcmd {
@@ -33,6 +34,11 @@ typedef Subcmd Flag;
 
 #define VERSION ("1.0.2")
 
+// HOME is a environment variable defined to `C:\Users\<username>\`
+#define HOME std::getenv("HOME")
+#define PREMAKE5_TEMPLATE_PATH FMT("{}\\.emacs.d\\snippets\\lua-mode\\premake5", HOME)
+
+
 int main(int argc, char *argv[]) {
   ARG();
   std::cout << std::unitbuf;
@@ -46,6 +52,7 @@ int main(int argc, char *argv[]) {
   bool will_copy_redist{false};
   bool will_help{false};
   bool will_clean{false};
+  bool will_init{false};
   bool will_show_version{false};
   bool open_sln{false};
   bool force{false};
@@ -55,10 +62,10 @@ int main(int argc, char *argv[]) {
   bool will_srun{false};
   std::string og_dir{fs::current_path().string()};
   std::string root_dir{};  
-  std::string project_name{};
   std::string config{""};
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
   std::string executable_args{};
+  std::string project_name{};
 
   auto help = [&](){							
     print("Usage: {} [flags] [config] [subcmd] {{executable_args...}}\n", program);
@@ -165,47 +172,7 @@ int main(int argc, char *argv[]) {
   
   std::vector<Subcmd> subcommands = {
     {false, "help",  [&]() { will_help = true; }},
-    {false, "init",  [&]() {
-      if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
-      if (!quiet) print("{}: Initializing Project...\n", "momobuild");
-      // create folders
-      auto create_dir = [&](const std::string& dir) {
-        if (!fs::exists(dir)) {
-          fs::create_directory(dir);
-          if (!quiet) print("INFO: Created {}\\...\n", dir);
-        }
-      };
-      auto create_file = [&](const std::string& file, const std::string& content={}){
-        if (!fs::exists(file)) {
-          std::ofstream ofs;
-          ofs.open(file, std::ios::binary | std::ios::out);
-          if (!ofs.is_open()) {
-            ERR("Could not open file {} for writing.\n", file);
-          }
-          if (!content.empty()){
-            ofs.write((char*)content.c_str(), content.size());
-          }
-          ofs.close();
-          if (!quiet) print("INFO: Created {}...\n", file);
-        }
-      };
-      
-      create_dir("src");
-      create_dir("bin");
-      create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
-      create_dir("bin\\Debug");
-      create_dir("build");
-      create_dir("lib");
-      create_dir("include");
-
-      // create files
-      create_file("premake5.lua");
-      create_file(".topdir");
-      create_file(".gitignore");
-      create_file("src\\main.cpp");
-      
-      exit(0);
-    }},
+    {false, "init",  [&]() { will_init = true; }},
     {false, "run",	[&]() {
       if (will_srun) ERR("`srun` and `run` cannot be called simultaneously\n");
       will_run=true;
@@ -359,6 +326,9 @@ int main(int argc, char *argv[]) {
 	for (auto& s : subcommands){
 	  if (s.handle(a)){
 	    subcommand_handled=true;
+	    if (s.name == "init"){
+	      project_name = arg.pop_arg();
+	    }
 	    break;
 	  }
 	}
@@ -408,6 +378,72 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
   
+  if (will_init){
+    std::string f{};
+    if (!project_name.empty()){ // read the premake5 template if the project name is given
+      std::ifstream ifs;
+      ifs.open(PREMAKE5_TEMPLATE_PATH);
+      if (!ifs.is_open()){
+	ERR("Could not open {} for reading...\n", PREMAKE5_TEMPLATE_PATH);
+      }
+  
+      ifs.seekg(0, std::ios::end);
+      f.resize(ifs.tellg());
+      ifs.seekg(0, std::ios::beg);
+  
+      ifs.read((char*)f.c_str(), f.size());
+  
+      ifs.close();
+  
+      str::lremove_until(f, "# --");
+      str::lremove(f, 4);
+    
+      str::trim(f);
+
+      str::replace(f, "$1", project_name);
+    }
+    
+    if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
+    if (!quiet) print("{}: Initializing Project...\n", "momobuild");
+    // create folders
+    auto create_dir = [&](const std::string& dir) {
+      if (!fs::exists(dir)) {
+        fs::create_directory(dir);
+        if (!quiet) print("INFO: Created {}\\...\n", dir);
+      }
+    };
+    auto create_file = [&](const std::string& file, const std::string& content={}){
+      if (!fs::exists(file)) {
+        std::ofstream ofs;
+        ofs.open(file, std::ios::binary | std::ios::out);
+        if (!ofs.is_open()) {
+          ERR("Could not open file {} for writing.\n", file);
+        }
+        if (!content.empty()){
+          ofs.write((char*)content.c_str(), content.size());
+        }
+        ofs.close();
+        if (!quiet) print("INFO: Created {}...\n", file);
+      }
+    };
+    
+    create_dir("src");
+    create_dir("bin");
+    create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
+    create_dir("bin\\Debug");
+    create_dir("build");
+    create_dir("lib");
+    create_dir("include");
+
+    // create files
+    create_file("premake5.lua", f);
+    create_file(".topdir");
+    create_file(".gitignore");
+    create_file("src\\main.cpp");
+    
+    exit(0);
+  }
+
   change_to_root_dir();
 
   if (will_clean){
