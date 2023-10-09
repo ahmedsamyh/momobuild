@@ -9,8 +9,10 @@ This isn't technically a build system i guess? Because from what i understand, [
 - [ ] customize which compiler to use
 - [x] automatically initiate a premake5 template
 - [ ] maybe make `cpp-proj` part of this?
+- [ ] custimizable path to premake5 and msbuild
 
-
-## References
+## Dependencies
 - [premake5 5.0.0-beta2](https://github.com/premake/premake-core/releases)
 - [msbuild from vc build tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+
+_Note: premake5.exe and msbuild.exe should be added to the path environment variable. Will later add a customizable path config to both of those._
