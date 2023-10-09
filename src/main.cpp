@@ -83,16 +83,16 @@ int main(int argc, char *argv[]) {
 	  "run subcommand is treated as the executable_name to run.\n"
 	  "    /v    - Prints the version of momobuild.\n"
 	  "    /Y    - Will answer `yes` on all confirmations.\n"
-	  
+     
 	  "\nSubcommands: \n"
-	  "    help  - Displays how to use this script.\n"
-	  "    init  - Initializes the project folder. echo     reset - "
-	  "Resets the project folder.\n"
-	  "    run   - Runs the builded program.\n"
-	  "    srun  - Runs the builded program as a new process.\n"
-	  "    dir   - Opens the directory of the builded program.\n"
-	  "    clean - Cleans the left-over things from the last build.\n"
-	  "    sln   - Opens the .sln file of the project.\n");
+	  "    help                     - Displays how to use this script.\n"
+	  "    init [project_name]      - Initializes the project folder. optional arg [project_name] can be passed.\n"
+	  "    reset                    - Resets the project folder.\n"
+	  "    run                      - Runs the builded program.\n"
+	  "    srun                     - Runs the builded program as a new process.\n"
+	  "    dir                      - Opens the directory of the builded program.\n"
+	  "    clean                    - Cleans the left-over things from the last build.\n"
+	  "    sln                      - Opens the .sln file of the project.\n");
     exit(0);
   };
 
