@@ -9,7 +9,7 @@ This isn't technically a build system i guess? Because from what i understand, [
 - [ ] customize which compiler to use
 - [x] automatically initiate a premake5 template
 - [ ] maybe make `cpp-proj` part of this?
-- [ ] custimizable path to premake5 and msbuild
+- [x] customizable path to premake5 and msbuild
 
 ## Dependencies
 - [premake5 5.0.0-beta2](https://github.com/premake/premake-core/releases)

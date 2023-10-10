@@ -28,8 +28,8 @@ struct Subcmd {
 typedef Subcmd Flag;
 
 #define ROOT_IDENTIFIER ".topdir"
-#define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
-#define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
+#define MSBUILD_PATH  "MSBuild.exe"
+#define PREMAKE5_PATH "premake5.exe"
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
 
@@ -66,6 +66,9 @@ int main(int argc, char *argv[]) {
   std::string executable_args{};
   std::string project_name{};
 
+  std::string premake5_path{PREMAKE5_PATH};
+  std::string msbuild_path{MSBUILD_PATH};
+
   auto help = [&](){							
     print("Usage: {} [flags] [config] [subcmd] {{executable_args...}}\n", program);
     print("\nConfigs: \n"
@@ -93,6 +96,45 @@ int main(int argc, char *argv[]) {
 	  "    clean                    - Cleans the left-over things from the last build.\n"
 	  "    sln                      - Opens the .sln file of the project.\n");
     exit(0);
+  };
+
+  auto read_paths_from_identifier = [&](){
+    std::ifstream ifs;
+    ifs.open(ROOT_IDENTIFIER);
+    if (!ifs.is_open()){
+      ERR("Could not open {} for reading...\n", ROOT_IDENTIFIER);
+    }
+
+    std::string buf{};
+
+    ifs.seekg(0, std::ios::end);
+    buf.resize(ifs.tellg());
+    ifs.seekg(0, std::ios::beg);
+
+    ifs.read((char*)buf.c_str(), buf.size());
+
+    ifs.close();
+
+    str::trim(buf);
+
+    if (!buf.empty()){
+      for (auto& l : str::split_by(buf, '\n')){
+	if (l.empty() || l[0] == '#') continue;
+	auto p{l.find(':')};
+	if (p != std::string::npos){
+	  std::string key{l.substr(0, p)};
+	  str::trim(key);
+	  std::string value{l.substr(p+1)};
+	  str::trim(value);
+	  str::tolower(key);
+	  if (key == "premake5_path"){
+	    premake5_path = value;
+	  } else if (key == "msbuild_path"){
+	    msbuild_path = value;
+	  }
+	}
+      }
+    }
   };
 
   /* changes to the project root dir */
@@ -194,17 +236,17 @@ int main(int argc, char *argv[]) {
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name), quiet));
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name), quiet));
+      win::wait_and_close_process(win::run_process(msbuild_path, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name), quiet));
+      win::wait_and_close_process(win::run_process(msbuild_path, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name), quiet));
     } else {
-      auto msbuild = win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
+      auto msbuild = win::run_process(msbuild_path, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
       win::wait_and_close_process(msbuild);
     }
   };
   
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
-    auto premake = win::run_process(PREMAKE5_PATH, "vs2022", quiet);
+    auto premake = win::run_process(premake5_path, "vs2022", quiet);
     win::wait_and_close_process(premake);
   };
 
@@ -445,6 +487,8 @@ int main(int argc, char *argv[]) {
 
   change_to_root_dir();
 
+  read_paths_from_identifier();
+
   if (will_clean){
     if (!quiet) print("{}: Cleaning project...\n", "momobuild");
     if (!confirmation("This will clean the previous build, continue?")) exit(0);
@@ -484,7 +528,7 @@ int main(int argc, char *argv[]) {
     get_project_name();
     if (!quiet) print("{}: Opening {}.sln...\n", "momobuild", project_name);
     win::open_file(FMT("build\\{}.sln", project_name));
-    exit(0);
+    exit(0);
   }
 
   
