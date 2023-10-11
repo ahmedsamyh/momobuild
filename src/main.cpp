@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
   bool will_copy_redist{false};
   bool will_help{false};
   bool will_clean{false};
+  bool will_reset{false};
   bool will_init{false};
   bool will_show_version{false};
   bool open_sln{false};
@@ -189,6 +190,7 @@ int main(int argc, char *argv[]) {
     {false, "sln",	[&]() {
       open_sln=true;
     }},
+    {false, "reset",    [&]() { will_reset = true; }}
   };
 
   auto run_msbuild = [&](std::string config="Debug") {
@@ -444,6 +446,24 @@ int main(int argc, char *argv[]) {
   }
 
   change_to_root_dir();
+
+  if (will_reset){
+    if (!confirmation("This will remove all folders, continue?")) exit(0);
+    for (auto& dir : win::get_dirs_in_dir(".")){
+      if (dir[0] != '.'){
+        fs::remove_all(dir);
+	if (!quiet) print("INFO: Removed {}...\n", dir);
+      }
+    }
+
+    for (auto& f : win::get_files_in_dir(".")){
+      if (f == "premake5.lua" || f == ROOT_IDENTIFIER){
+	fs::remove(f);
+	if (!quiet) print("INFO: Removed {}...\n", f);
+      }
+    }
+    exit(0);
+  }
 
   if (will_clean){
     if (!quiet) print("{}: Cleaning project...\n", "momobuild");
