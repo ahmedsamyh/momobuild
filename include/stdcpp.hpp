@@ -20,7 +20,10 @@ void wait_and_close_process(PROCESS_INFORMATION proc);
 HINSTANCE open_dir(const std::string& dir);
 HINSTANCE open_file(const std::string& file);
 std::string last_error_str();
-  
+std::vector<WIN32_FIND_DATAA> get_entries_in_dir(std::string dir);
+std::vector<std::string> get_files_in_dir(std::string dir);
+std::vector<std::string> get_dirs_in_dir(std::string dir);
+
 }; // namespace win
 #endif
 
@@ -220,6 +223,43 @@ std::string last_error_str(){
   }
   std::string message(message_buffer, size_t(size));
   return message;
+}
+
+std::vector<WIN32_FIND_DATAA> get_entries_in_dir(std::string dir) {
+  std::vector<WIN32_FIND_DATAA> res{};
+  WIN32_FIND_DATAA fd{};
+  dir += "\\*";
+  HANDLE h = FindFirstFileA(dir.c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE){
+    fprint(std::cerr, "ERROR: {}({}) -> {}\n", __func__, dir, last_error_str());
+    return res;
+  }
+  do {
+    res.push_back(fd);
+  } while (FindNextFileA(h, &fd) != FALSE);
+
+  FindClose(h);
+  return res;
+}
+
+std::vector<std::string> get_files_in_dir(std::string dir){
+  std::vector<std::string> res{};
+  for (auto& e : get_entries_in_dir(dir)){
+    if (!(e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
+	res.push_back(e.cFileName);
+    }
+  }
+  return res;
+}
+
+std::vector<std::string> get_dirs_in_dir(std::string dir){
+  std::vector<std::string> res{};
+  for (auto& e : get_entries_in_dir(dir)){
+    if (e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
+	res.push_back(e.cFileName);
+    }
+  }
+  return res;
 }
 
 }; // namespace win
