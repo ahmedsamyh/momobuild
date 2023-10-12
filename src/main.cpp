@@ -8,8 +8,6 @@
 #include <shellapi.h>
 namespace fs = std::filesystem;
 
-// TODO: Implement `reset` subcommand.
-
 struct Subcmd {
   bool handled{false};
   std::string name{};
@@ -38,6 +36,39 @@ typedef Subcmd Flag;
 // HOME is a environment variable defined to `C:\Users\<username>\`
 #define PREMAKE5_TEMPLATE_PATH FMT("{}\\.emacs.d\\snippets\\lua-mode\\premake5", get_env("HOME"))
 
+static std::vector<std::string> source_suffixes = {
+  ".hpp",
+  ".cpp"
+};
+
+void collect_source_files(std::string& collector, const std::string& dir, const std::string& og_dir){
+  SetCurrentDirectoryA(dir.c_str());
+  for (auto& e : win::get_entries_in_dir(".")){
+    if (e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
+      std::string dir_name{e.cFileName};
+      // skip dirs starting with `.`
+      if (dir_name.starts_with(".")) continue;
+      collect_source_files(collector, dir_name, og_dir);
+    } else {
+      std::string file_name{e.cFileName};
+      ASSERT(!file_name.empty());
+      // skip files starting with `.`
+      if (file_name.starts_with(".")) continue;
+      for (auto& s : source_suffixes){
+	if (file_name.ends_with(s)){
+	  if (!collector.empty())
+	    collector += " ";
+	  file_name = fs::absolute(fs::path(file_name)).string();
+	  collector += file_name;
+	}
+      }
+    }
+  }
+  if (fs::current_path().string() != og_dir){
+    SetCurrentDirectoryA("..\\");
+  }
+}
+
 int main(int argc, char *argv[]) {
   ARG();
   std::cout << std::unitbuf;
@@ -52,6 +83,7 @@ int main(int argc, char *argv[]) {
   bool will_help{false};
   bool will_clean{false};
   bool will_reset{false};
+  bool will_etags{false};
   bool will_init{false};
   bool will_show_version{false};
   bool open_sln{false};
@@ -75,14 +107,14 @@ int main(int argc, char *argv[]) {
 	  "    All\n"	 
 	  
 	  "\nFlags: \n"
-	  "    /Q    - Quiet mode; do not output anything\n"
-	  "    /Rdst - Copies vcredist files to .\\redist\n"	
-	  "    /h,/? - Same as the help subcommand.\n"		
-	  "    /nb   - Do not build and run .\n"		
-	  "    /ex   - If this flag is present, the argument after the "
+	  "    /Q                       - Quiet mode; do not output anything\n"
+	  "    /Rdst                    - Copies vcredist files to .\\redist\n"	
+	  "    /h,/?                    - Same as the help subcommand.\n"		
+	  "    /nb                      - Do not build and run .\n"		
+	  "    /ex                      - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
-	  "    /v    - Prints the version of momobuild.\n"
-	  "    /Y    - Will answer `yes` on all confirmations.\n"
+	  "    /v                       - Prints the version of momobuild.\n"
+	  "    /Y                       - Will answer `yes` on all confirmations.\n"
      
 	  "\nSubcommands: \n"
 	  "    help                     - Displays how to use this script.\n"
@@ -92,7 +124,8 @@ int main(int argc, char *argv[]) {
 	  "    srun                     - Runs the builded program as a new process.\n"
 	  "    dir                      - Opens the directory of the builded program.\n"
 	  "    clean                    - Cleans the left-over things from the last build.\n"
-	  "    sln                      - Opens the .sln file of the project.\n");
+	  "    sln                      - Opens the .sln file of the project.\n"
+	  "    etags                    - Runs etags on every source files in the project\n");
     exit(0);
   };
 
@@ -190,7 +223,8 @@ int main(int argc, char *argv[]) {
     {false, "sln",	[&]() {
       open_sln=true;
     }},
-    {false, "reset",    [&]() { will_reset = true; }}
+    {false, "reset",    [&]() { will_reset = true; }},
+    {false, "etags",    [&]() { will_etags = true; }}
   };
 
   auto run_msbuild = [&](std::string config="Debug") {
@@ -446,6 +480,16 @@ int main(int argc, char *argv[]) {
   }
 
   change_to_root_dir();
+
+  if (will_etags){
+    std::string etags_cmd{};
+    collect_source_files(etags_cmd, ".", fs::current_path().string());
+    VAR(etags_cmd);
+    ASSERT(fs::current_path().string() == root_dir);
+    if (!quiet) print("\n{}: Running etags...\n", "momobuild");
+    win::wait_and_close_process(win::run_process("etags", etags_cmd));
+    exit(0);
+  }
 
   if (will_reset){
     if (!confirmation("This will remove all folders, continue?")) exit(0);
