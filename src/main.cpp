@@ -513,7 +513,7 @@ int main(int argc, char *argv[]) {
     }
 
     for (auto& f : win::get_files_in_dir(".")){
-      if (f == "premake5.lua" || f == ROOT_IDENTIFIER){
+      if (f == "premake5.lua" || f == ROOT_IDENTIFIER || f == ".gitignore"){
 	fs::remove(f);
 	if (!quiet) print("INFO: Removed {}...\n", f);
       }
