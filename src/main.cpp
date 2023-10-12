@@ -26,10 +26,22 @@ struct Subcmd {
 typedef Subcmd Flag;
 
 #define ROOT_IDENTIFIER ".topdir"
+#define ROOT_IDENTIFIER_TEMPLATE "# Configure the premake5 and msbuild path here if you don't have them added to your PATH.\n"\
+                                 "\n"\
+                                 "# Lines starting with `#` are treated as comments and are ignored\n"\
+                                 "\n"\
+                                 "# premake5_path: c:\\path\\to\\premake5\\premake5.exe\n"\
+                                 "# msbuild_path:  c:\\path\\to\\msbuild\\msbuild.exe\n"
+                                 
 #define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
 #define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
 #define VCREDIST_EXE "vc_redist."
+#define GITIGNORE_TEMPLATE "bin\n"   \
+                           "lib\n"   \
+			   "build\n" \
+			   "*~\n"
+
 
 #define VERSION ("0.0.3")
 
@@ -472,8 +484,8 @@ int main(int argc, char *argv[]) {
 
     // create files
     create_file("premake5.lua", f);
-    create_file(".topdir");
-    create_file(".gitignore");
+    create_file(ROOT_IDENTIFIER, ROOT_IDENTIFIER_TEMPLATE);
+    create_file(".gitignore", GITIGNORE_TEMPLATE);
     create_file("src\\main.cpp");
     
     exit(0);
