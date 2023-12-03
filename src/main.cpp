@@ -1,5 +1,5 @@
 #define STDCPP_IMPLEMENTATION
-#define USE_WIN32
+#define USE_WINAPI
 #include <functional>
 #include <stdcpp.hpp>
 #include <vector>
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  std::string program{arg.pop_arg()};
+  std::string program{arg.pop()};
 
   // flags
   bool quiet{false};
@@ -242,18 +242,17 @@ int main(int argc, char *argv[]) {
   auto run_msbuild = [&](std::string config="Debug") {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name), quiet));
-      win::wait_and_close_process(win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name), quiet));
+      // TODO: win::run_sync() cannot disable echoing in this version.
+      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name));
+      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name));
     } else {
-      auto msbuild = win::run_process(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
-      win::wait_and_close_process(msbuild);
+      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
     }
   };
   
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
-    auto premake = win::run_process(PREMAKE5_PATH, "vs2022", quiet);
-    win::wait_and_close_process(premake);
+    win::run_sync(PREMAKE5_PATH, "vs2022");
   };
 
   auto run = [&](){
@@ -262,8 +261,8 @@ int main(int argc, char *argv[]) {
       print("--------------------------------------------------\n");
     }
     SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
-    auto child = win::run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
-    win::wait_and_close_process(child);
+    win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    
     SetCurrentDirectoryA(root_dir.c_str());
   };
 
@@ -273,11 +272,10 @@ int main(int argc, char *argv[]) {
       print("--------------------------------------------------\n");
     }
     SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
-    auto child = win::run_process(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, false, true);
-    win::wait_and_close_process(child);
+    // TODO: win::run_sync() also doesn't have any functionality to spawn the child in a new console.
+    win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
     SetCurrentDirectoryA(root_dir.c_str());
   };
-
   // validators
   auto is_valid_config = [&](const std::string& a){
     for (auto& c : valid_configs){
@@ -315,7 +313,7 @@ int main(int argc, char *argv[]) {
     
   parse_arg:
   while (arg) {
-    std::string a = arg.pop_arg();
+    std::string a = arg.pop();
 
     // try to parse as executable name or args
     if (subcommand_handled && (will_run || will_srun)){
@@ -374,7 +372,7 @@ int main(int argc, char *argv[]) {
 	  if (s.handle(a)){
 	    subcommand_handled=true;
 	    if (s.name == "init"){
-	      project_name = arg.pop_arg();
+	      project_name = arg.pop();
 	    }
 	    break;
 	  }
@@ -499,7 +497,7 @@ int main(int argc, char *argv[]) {
     VAR(etags_cmd);
     ASSERT(fs::current_path().string() == root_dir);
     if (!quiet) print("\n{}: Running etags...\n", "momobuild");
-    win::wait_and_close_process(win::run_process("etags", etags_cmd));
+    win::run_sync("etags", etags_cmd);
     exit(0);
   }
 
