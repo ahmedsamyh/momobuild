@@ -54,7 +54,7 @@ static std::vector<std::string> source_suffixes = {
 };
 
 void collect_source_files(std::string& collector, const std::string& dir, const std::string& og_dir){
-  SetCurrentDirectoryA(dir.c_str());
+  win::change_dir(dir);
   for (auto& e : win::get_entries_in_dir(".")){
     if (e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
       std::string dir_name{e.cFileName};
@@ -77,7 +77,7 @@ void collect_source_files(std::string& collector, const std::string& dir, const 
     }
   }
   if (fs::current_path().string() != og_dir){
-    SetCurrentDirectoryA("..\\");
+    win::change_dir("..\\");
   }
 }
 
@@ -86,30 +86,30 @@ int main(int argc, char *argv[]) {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  std::string program{arg.pop()};
+  std::string program = arg.pop();
 
   // flags
-  bool quiet{false};
-  bool not_build{false};
-  bool will_copy_redist{false};
-  bool will_help{false};
-  bool will_clean{false};
-  bool will_reset{false};
-  bool will_etags{false};
-  bool will_init{false};
-  bool will_show_version{false};
-  bool open_sln{false};
-  bool force{false};
-  bool executable_name_provided{false};
-  std::string executable_name{};
-  bool will_run{false};
-  bool will_srun{false};
-  std::string og_dir{fs::current_path().string()};
-  std::string root_dir{};  
-  std::string config{""};
+  bool quiet = false;
+  bool not_build = false;
+  bool will_copy_redist = false;
+  bool will_help = false;
+  bool will_clean = false;
+  bool will_reset = false;
+  bool will_etags = false;
+  bool will_init = false;
+  bool will_show_version = false;
+  bool open_sln = false;
+  bool force = false;
+  bool executable_name_provided = false;
+  std::string executable_name;
+  bool will_run = false;
+  bool will_srun = false;
+  std::string og_dir = fs::current_path().string();
+  std::string root_dir;  
+  std::string config = "";
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
-  std::string executable_args{};
-  std::string project_name{};
+  std::string executable_args;
+  std::string project_name;
 
   auto help = [&](){							
     print("Usage: {} [flags] [config] [subcmd] {{executable_args...}}\n", program);
@@ -144,10 +144,7 @@ int main(int argc, char *argv[]) {
   /* changes to the project root dir */
   auto change_to_root_dir = [&]() {
     while (!fs::exists(ROOT_IDENTIFIER) && !fs::current_path().stem().string().empty()) {
-      if (!SetCurrentDirectoryA("..\\")){
-        ERR("Could not change directory\n");
-        exit(1);
-      }
+      win::change_dir("..\\");
     }
     root_dir = fs::current_path().string();
     if (fs::current_path().stem().string().empty()){
@@ -179,7 +176,7 @@ int main(int argc, char *argv[]) {
 
   // get the project name from the `.sln` file in `.\build`
   auto get_project_name = [&]() {
-    SetCurrentDirectoryA("build");
+    win::change_dir("build");
       WIN32_FIND_DATAA file_data{};
       if (FindFirstFileA("*.sln", &file_data) == INVALID_HANDLE_VALUE){
         ERR("Could not find .sln file in `build\\`\n\nNOTE: Please build the project first\n");
@@ -187,7 +184,7 @@ int main(int argc, char *argv[]) {
       project_name = file_data.cFileName;
       // remove `.sln` from the filename
       for (size_t i = 0; i < 4; ++i) project_name.pop_back();
-    SetCurrentDirectoryA("..\\");
+      win::change_dir("..\\");
   };
 
   auto delete_file = [&](const std::string& file){
@@ -260,10 +257,10 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}]...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
+    win::change_dir(FMT("bin\\{}\\", config).c_str());
     win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
     
-    SetCurrentDirectoryA(root_dir.c_str());
+    win::change_dir(root_dir.c_str());
   };
 
   auto srun = [&](){
@@ -271,10 +268,10 @@ int main(int argc, char *argv[]) {
       print("\n{}: Running {}.exe[{}] as a new process...\n", "momobuild", (!executable_name.empty() ? executable_name : project_name), config);
       print("--------------------------------------------------\n");
     }
-    SetCurrentDirectoryA(FMT("bin\\{}\\", config).c_str());
+    win::change_dir(FMT("bin\\{}\\", config).c_str());
     // TODO: win::run_sync() also doesn't have any functionality to spawn the child in a new console.
     win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
-    SetCurrentDirectoryA(root_dir.c_str());
+    win::change_dir(root_dir.c_str());
   };
   // validators
   auto is_valid_config = [&](const std::string& a){
@@ -307,11 +304,11 @@ int main(int argc, char *argv[]) {
 
   // parse command line arguments
   // Usage: momobuild.exe [Config] [Flag] [Subcommand]
-  bool config_handled{false};
-  bool flag_handled{false};
-  bool subcommand_handled{false};
+  bool config_handled = false;
+  bool flag_handled = false;
+  bool subcommand_handled = false;
     
-  parse_arg:
+ parse_arg:
   while (arg) {
     std::string a = arg.pop();
 
