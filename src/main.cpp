@@ -23,6 +23,9 @@ struct Subcmd {
   }
 };
 
+// TODO: flag to pass additional msbuild options
+// TODO: does not exit with child exit code
+
 typedef Subcmd Flag;
 
 #define ROOT_IDENTIFIER ".topdir"
@@ -32,7 +35,7 @@ typedef Subcmd Flag;
                                  "\n"\
                                  "# premake5_path: c:\\path\\to\\premake5\\premake5.exe\n"\
                                  "# msbuild_path:  c:\\path\\to\\msbuild\\msbuild.exe\n"
-                                 
+
 #define MSBUILD_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"
 #define PREMAKE5_PATH "D:\\bin\\premake 5.0 beta2\\premake5.exe"
 #define VCREDIST_PATH "D:\\bin\\Microsoft Visual Studio\\Community\\VC\\Redist\\MSVC\\14.36.32532\\"
@@ -41,9 +44,9 @@ typedef Subcmd Flag;
                            "lib\n"   \
 			   "build\n" \
 			   "*~\n"
+#define MSBUILD_OPTIONS "-warnAsMessage:LNK4006"
 
-
-#define VERSION ("0.0.3")
+#define VERSION ("0.0.4")
 
 // HOME is a environment variable defined to `C:\Users\<username>\`
 #define PREMAKE5_TEMPLATE_PATH FMT("{}\\.emacs.d\\snippets\\lua-mode\\premake5", get_env("HOME"))
@@ -105,29 +108,29 @@ int main(int argc, char *argv[]) {
   bool will_run = false;
   bool will_srun = false;
   std::string og_dir = fs::current_path().string();
-  std::string root_dir;  
+  std::string root_dir;
   std::string config = "";
   std::vector<std::string> valid_configs = {"Debug", "Release", "All"};
   std::string executable_args;
   std::string project_name;
 
-  auto help = [&](){							
+  auto help = [&](){
     print("Usage: {} [flags] [config] [subcmd] {{executable_args...}}\n", program);
     print("\nConfigs: \n"
           "    Debug (default)\n"
           "    Release\n"
-	  "    All\n"	 
-	  
+	  "    All\n"
+
 	  "\nFlags: \n"
 	  "    /Q                       - Quiet mode; do not output anything\n"
-	  "    /Rdst                    - Copies vcredist files to .\\redist\n"	
-	  "    /h,/?                    - Same as the help subcommand.\n"		
-	  "    /nb                      - Do not build and run .\n"		
+	  "    /Rdst                    - Copies vcredist files to .\\redist\n"
+	  "    /h,/?                    - Same as the help subcommand.\n"
+	  "    /nb                      - Do not build and run .\n"
 	  "    /ex                      - If this flag is present, the argument after the "
 	  "run subcommand is treated as the executable_name to run.\n"
 	  "    /v                       - Prints the version of momobuild.\n"
 	  "    /Y                       - Will answer `yes` on all confirmations.\n"
-     
+
 	  "\nSubcommands: \n"
 	  "    help                     - Displays how to use this script.\n"
 	  "    init [project_name]      - Initializes the project folder. optional arg [project_name] can be passed.\n"
@@ -161,14 +164,14 @@ int main(int argc, char *argv[]) {
     std::string response{"AAA"};
     str::tolower(response);
     auto valid = [&](const std::string& str){ return str=="" || str=="y" || str=="yes" || str=="n" || str=="no"; };
-    
+
     do {
       if (!valid(response)){
 	print("Please enter yes or no\n");
       }
 
       print("{} [yes/no]{{default: {}}}\n", question, _default  ? "yes" : "no");
-      
+
       std::getline(std::cin, response);
     } while (!valid(response));
     return ((_default && response=="") || response=="y" || response=="yes") ? true : false;
@@ -211,7 +214,7 @@ int main(int argc, char *argv[]) {
     {false, "/v",    [&]() { will_show_version = true; }},
     {false, "/Y",    [&]() { force=true; }}
   };
-  
+
   std::vector<Subcmd> subcommands = {
     {false, "help",  [&]() { will_help = true; }},
     {false, "init",  [&]() { will_init = true; }},
@@ -240,13 +243,13 @@ int main(int argc, char *argv[]) {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
       // TODO: win::run_sync() cannot disable echoing in this version.
-      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Debug", project_name));
-      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", "Release", project_name));
+      win::run_async(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Debug", project_name, MSBUILD_OPTIONS));
+      win::run_sync (MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Release", project_name, MSBUILD_OPTIONS));
     } else {
-      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} build\\{}.sln -v:m -m", config, project_name));
+      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", config, MSBUILD_OPTIONS, project_name));
     }
   };
-  
+
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
     win::run_sync(PREMAKE5_PATH, "vs2022");
@@ -259,7 +262,7 @@ int main(int argc, char *argv[]) {
     }
     win::change_dir(FMT("bin\\{}\\", config).c_str());
     win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
-    
+
     win::change_dir(root_dir.c_str());
   };
 
@@ -307,7 +310,7 @@ int main(int argc, char *argv[]) {
   bool config_handled = false;
   bool flag_handled = false;
   bool subcommand_handled = false;
-    
+
  parse_arg:
   while (arg) {
     std::string a = arg.pop();
@@ -324,7 +327,7 @@ int main(int argc, char *argv[]) {
       executable_args += a;
       goto parse_arg;
     }
-    
+
     // check if the argument starts with `/`
     if (a[0] == '/'){ // this is a flag
       // check if the flag is valid
@@ -356,7 +359,7 @@ int main(int argc, char *argv[]) {
 	/// no config, subcomand
 
 	// if the subcommand is already handled
-	if (subcommand_handled){ 
+	if (subcommand_handled){
 	  if (is_valid_subcommand(a)){
 	    fprint(std::cerr, "ERROR: Can only provide one subcommand at a time\n");
 	    exit(1);
@@ -384,7 +387,7 @@ int main(int argc, char *argv[]) {
 	/// config provided, so try to parse as subcommand
 
         // if the subcommand is already handled
-	if (subcommand_handled){ 
+	if (subcommand_handled){
 	  if (is_valid_subcommand(a)){
 	    fprint(std::cerr, "ERROR: Can only provide one subcommand at a time\n");
 	    exit(1);
@@ -410,7 +413,7 @@ int main(int argc, char *argv[]) {
   }
 
   // subcommands/flags that doesn't need to be in root_dir
-  
+
   if (will_help){
     help();
   }
@@ -419,7 +422,7 @@ int main(int argc, char *argv[]) {
     print("Momobuild Version {}\n", VERSION);
     exit(0);
   }
-  
+
   if (will_init){
     std::string f{};
     if (!project_name.empty()){ // read the premake5 template if the project name is given
@@ -428,23 +431,23 @@ int main(int argc, char *argv[]) {
       if (!ifs.is_open()){
 	ERR("Could not open {} for reading...\n", PREMAKE5_TEMPLATE_PATH);
       }
-  
+
       ifs.seekg(0, std::ios::end);
       f.resize(ifs.tellg());
       ifs.seekg(0, std::ios::beg);
-  
+
       ifs.read((char*)f.c_str(), f.size());
-  
+
       ifs.close();
-  
+
       str::lremove_until(f, "# --");
       str::lremove(f, 4);
-    
+
       str::trim(f);
 
       str::replace(f, "$1", project_name);
     }
-    
+
     if (!confirmation("This will create a project structure at the current dir, proceed?")) exit(0);
     if (!quiet) print("{}: Initializing Project...\n", "momobuild");
     // create folders
@@ -468,7 +471,7 @@ int main(int argc, char *argv[]) {
         if (!quiet) print("INFO: Created {}...\n", file);
       }
     };
-    
+
     create_dir("src");
     create_dir("bin");
     create_dir("bin\\Release"); // TODO: Maybe have all Configs in an array and iterator over to create the folders?
@@ -482,7 +485,7 @@ int main(int argc, char *argv[]) {
     create_file(ROOT_IDENTIFIER, ROOT_IDENTIFIER_TEMPLATE);
     create_file(".gitignore", GITIGNORE_TEMPLATE);
     create_file("src\\main.cpp");
-    
+
     exit(0);
   }
 
@@ -527,7 +530,7 @@ int main(int argc, char *argv[]) {
     if (cleaned==0 && !quiet){
       print("INFO: Nothing to remove...\n");
     }
-    
+
     exit(0);
   }
 
@@ -558,7 +561,7 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
-  
+
   if (!not_build){
     run_premake();
     ASSERT(fs::exists("build"));
@@ -573,6 +576,6 @@ int main(int argc, char *argv[]) {
     get_project_name();
     srun();
   }
-  
+
   return 0;
 }
