@@ -24,7 +24,6 @@ struct Subcmd {
 };
 
 // TODO: flag to pass additional msbuild options
-// TODO: does not exit with child exit code
 
 typedef Subcmd Flag;
 
@@ -243,16 +242,26 @@ int main(int argc, char *argv[]) {
     if (!quiet) print("\n{}: Running MSBuild [{}]...\n", "momobuild", config);
     if (config=="All") {
       // TODO: win::run_sync() cannot disable echoing in this version.
-      win::run_async(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Debug", project_name, MSBUILD_OPTIONS));
-      win::run_sync (MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Release", project_name, MSBUILD_OPTIONS));
+      int ret = win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Debug", project_name, MSBUILD_OPTIONS));
+      if (ret != 0){
+	exit(ret);
+      }
+      ret = win::run_sync (MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", "Release", project_name, MSBUILD_OPTIONS));
+      if (ret != 0){
+	exit(ret);
+      }
     } else {
-      win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", config, MSBUILD_OPTIONS, project_name));
+      int ret = win::run_sync(MSBUILD_PATH, FMT("-p:configuration={} {} build\\{}.sln -v:m -m", config, MSBUILD_OPTIONS, project_name));
+      if (ret != 0){
+	exit(ret);
+      }
     }
   };
 
   auto run_premake = [&]() {
     if (!quiet) print("\n{}: Running Premake5...\n", "momobuild");
-    win::run_sync(PREMAKE5_PATH, "vs2022");
+    int ret = win::run_sync(PREMAKE5_PATH, "vs2022");
+    if (ret != 0) exit(ret);
   };
 
   auto run = [&](){
@@ -261,7 +270,10 @@ int main(int argc, char *argv[]) {
       print("--------------------------------------------------\n");
     }
     win::change_dir(FMT("bin\\{}\\", config).c_str());
-    win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    int ret = win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    if (ret != 0){
+      exit(ret);
+    }
 
     win::change_dir(root_dir.c_str());
   };
@@ -273,7 +285,10 @@ int main(int argc, char *argv[]) {
     }
     win::change_dir(FMT("bin\\{}\\", config).c_str());
     // TODO: win::run_sync() also doesn't have any functionality to spawn the child in a new console.
-    win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    int ret = win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    if (ret != 0){
+      exit(ret);
+    }
     win::change_dir(root_dir.c_str());
   };
   // validators
@@ -497,7 +512,10 @@ int main(int argc, char *argv[]) {
     VAR(etags_cmd);
     ASSERT(fs::current_path().string() == root_dir);
     if (!quiet) print("\n{}: Running etags...\n", "momobuild");
-    win::run_sync("etags", etags_cmd);
+    int ret = win::run_sync("etags", etags_cmd);
+    if (ret != 0){
+      exit(ret);
+    }
     exit(0);
   }
 
