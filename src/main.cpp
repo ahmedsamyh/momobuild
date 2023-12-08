@@ -284,8 +284,7 @@ int main(int argc, char *argv[]) {
       print("--------------------------------------------------\n");
     }
     win::change_dir(FMT("bin\\{}\\", config).c_str());
-    // TODO: win::run_sync() also doesn't have any functionality to spawn the child in a new console.
-    int ret = win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args);
+    int ret = win::run_sync(FMT("{}.exe", (!executable_name.empty() ? executable_name : project_name)), executable_args, true);
     if (ret != 0){
       exit(ret);
     }

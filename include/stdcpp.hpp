@@ -59,8 +59,8 @@ namespace win {
 
   typedef PROCESS_INFORMATION Proc;
 
-  int run_sync(const std::string& program, const std::string& cmd);
-  Option<Proc> run_async(const std::string& program, const std::string& cmd);
+  int run_sync(const std::string& program, const std::string& cmd, bool new_console=false);
+  Option<Proc> run_async(const std::string& program, const std::string& cmd, bool new_console=false);
   int close_proc(const Proc& proc);
   HINSTANCE open_dir(const std::string& dir);
   HINSTANCE open_file(const std::string& file);
@@ -218,7 +218,7 @@ namespace file {
 
 namespace win {
 
-  int run_sync(const std::string& program, const std::string& cmd){
+  int run_sync(const std::string& program, const std::string& cmd, bool new_console){
     STARTUPINFOA si{};
     si.cb = sizeof(si);
     Proc child_proc;
@@ -226,6 +226,7 @@ namespace win {
     std::string full_cmd = FMT("{} {}", program, cmd).c_str();
 
     DWORD creation_flags = NORMAL_PRIORITY_CLASS;
+    if (new_console) creation_flags |= CREATE_NEW_CONSOLE;
 
     if (!CreateProcessA(NULL,
 			LPSTR(full_cmd.c_str()),
@@ -258,7 +259,7 @@ namespace win {
     return 0;
   }
 
-  Option<Proc> run_async(const std::string& program, const std::string& cmd){
+  Option<Proc> run_async(const std::string& program, const std::string& cmd, bool new_console){
 
     STARTUPINFOA si{};
     si.cb = sizeof(si);
@@ -267,6 +268,7 @@ namespace win {
     std::string full_cmd = FMT("{} {}", program, cmd).c_str();
 
     DWORD creation_flags = NORMAL_PRIORITY_CLASS;
+    if (new_console) creation_flags |= CREATE_NEW_CONSOLE;
 
     if (!CreateProcessA(NULL,
 			LPSTR(full_cmd.c_str()),
